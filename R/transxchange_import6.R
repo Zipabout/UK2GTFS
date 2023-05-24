@@ -55,7 +55,13 @@ transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
 
   ## JourneyPatternSections ##########################################
   JourneyPatternSections <- xml2::xml_child(xml, "d1:JourneyPatternSections")
-  JourneyPatternSections <- import_journeypatternsections(journeypatternsections = JourneyPatternSections)
+  if(length(JourneyPatternSections) > 0){
+    JourneyPatternSections <- import_journeypatternsections(journeypatternsections = JourneyPatternSections)
+  } else {
+    JourneyPatternSections <- NULL
+  }
+
+
 
   ## Services ##########################################
   Services <- xml2::xml_child(xml, "d1:Services")
@@ -64,11 +70,19 @@ transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
       stop("More than one service")
     }
   }
-  Services <- import_services(Services, full_import = full_import)
-  StandardService <- Services$StandardService
-  Services_main <- Services$Services_main
-  SpecialDaysOperation <- Services$SpecialDaysOperation
-  rm(Services)
+  if(length(Services) > 0){
+    Services <- import_services(Services, full_import = full_import)
+    StandardService <- Services$StandardService
+    Services_main <- Services$Services_main
+    SpecialDaysOperation <- Services$SpecialDaysOperation
+    rm(Services)
+  } else {
+    warning("No Services in ",file)
+    return(NULL)
+  }
+
+
+
 
   # Handle NA in service date
   # Sometimes end date is missing in which case assume service runs for one year
@@ -88,21 +102,29 @@ transxchange_import <- function(file, run_debug = TRUE, full_import = FALSE) {
 
   ## Operators ##########################################
   Operators <- xml2::xml_child(xml, "d1:Operators")
-  Operators <- import_operators(operators = Operators)
-  if (nrow(Operators) != 1) {
-    Operators <- Operators[Operators$OperatorCode %in% Services_main$RegisteredOperatorRef, ]
+  if(length(Operators) == 0){
+    # Operators missing
+    Operators <- NULL
+  } else {
+    Operators <- import_operators(operators = Operators)
     if (nrow(Operators) != 1) {
-      warning("Can't match operators to services, forcing link")
-      if (nrow(Operators) == 0) {
-        Operators <- xml2::xml_child(xml, "d1:Operators")
-        Operators <- import_operators(Operators)
-        Operators <- Operators[1, ]
-        Services_main$RegisteredOperatorRef <- Operators$OperatorCode
-      } else {
-        stop("Can't force realtionship between Operators and Services")
+      Operators <- Operators[Operators$OperatorCode %in% Services_main$RegisteredOperatorRef, ]
+      if (nrow(Operators) != 1) {
+        warning("Can't match operators to services, forcing link")
+        if (nrow(Operators) == 0) {
+          Operators <- xml2::xml_child(xml, "d1:Operators")
+          Operators <- import_operators(Operators)
+          Operators <- Operators[1, ]
+          Services_main$RegisteredOperatorRef <- Operators$OperatorCode
+        } else {
+          stop("Can't force realtionship between Operators and Services")
+        }
       }
     }
   }
+
+
+
 
   ## ServicedOrganisations ############################
   ServicedOrganisations <- xml2::xml_child(xml, "d1:ServicedOrganisations")

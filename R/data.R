@@ -68,6 +68,18 @@
 #' @format A SF data frame
 "rail_heavy"
 
+#' ATCO Admin Areas
+#'
+#' Association of Transport Co-ordinating Officers Code
+#'
+#' Boundaries of the ATCO Admin Areas. Note there are 4 national areas
+#' represented by a box around the UK.
+#'
+#'
+#' @format A SF data frame
+"atco_areas"
+
+
 
 #' Historic Bank Holidays
 #'
@@ -77,3 +89,16 @@
 #'
 #' @format A data frame with 4 columns
 "historic_bank_holidays"
+
+
+#' Example School term and holiday dates
+#'
+#' Term dates change around the UK and from year to year. This are simply the
+#' Leeds 2022/23 dates repeated for each year. Therefore some inaccuracy will
+#' occur when used historically
+#'
+#'
+#' @format A data frame with 4 columns
+"school_terms"
+
+

@@ -51,7 +51,7 @@ transxchange_export <- function(obj,
     }
   }
 
-  if(class(ServicedOrganisations) == "data.frame"){
+  if(inherits(ServicedOrganisations, "data.frame")){
     if(nrow(ServicedOrganisations) == 0){
       ServicedOrganisations <- NULL
     }
@@ -223,6 +223,13 @@ transxchange_export <- function(obj,
 
 
   # Journey Pattern Sections ------------------------------------------------
+
+  # Remove occasional -
+  JourneyPatternSections$RunTime <- gsub("-","",JourneyPatternSections$RunTime)
+  JourneyPatternSections$To.WaitTime <- gsub("-","",JourneyPatternSections$To.WaitTime)
+  JourneyPatternSections$From.WaitTime <- gsub("-","",JourneyPatternSections$From.WaitTime)
+
+
   if (run_debug) {
     chk <- gsub("[0-9]", "", JourneyPatternSections$RunTime)
     chk <- unique(chk)
@@ -271,27 +278,35 @@ transxchange_export <- function(obj,
   # agency_id, agency_name, agency_url, agency_timezone
 
   # Check which code is used
-  if (all(routes$agency_id %in% Operators$NationalOperatorCode)) {
-    agency_id <- Operators$NationalOperatorCode
-  } else if (all(routes$agency_id %in% Operators$OperatorCode)) {
-    agency_id <- Operators$OperatorCode
+  if(is.null(Operators)){
+    agency_id <- unique(routes$agency_id)
+    agency_name <- rep("Unknown Operator", length(agency_id))
   } else {
-    if (length(unique(routes$agency_id)) == 1 & length(unique(Operators$NationalOperatorCode)) == 1) {
-      agency_id <- unique(routes$agency_id)
+    if (all(routes$agency_id %in% Operators$NationalOperatorCode)) {
+      agency_id <- Operators$NationalOperatorCode
+    } else if (all(routes$agency_id %in% Operators$OperatorCode)) {
+      agency_id <- Operators$OperatorCode
     } else {
-      stop("Unable to match OperatorCode between Services_main and Operators")
+      if (length(unique(routes$agency_id)) == 1 & length(unique(Operators$NationalOperatorCode)) == 1) {
+        agency_id <- unique(routes$agency_id)
+      } else {
+        stop("Unable to match OperatorCode between Services_main and Operators")
+      }
+    }
+
+    if (is.null(Operators$TradingName)) {
+      agency_name <- Operators$OperatorShortName
+    } else {
+      if (is.na(Operators$TradingName)) {
+        agency_name <- Operators$OperatorShortName
+      } else {
+        agency_name <- Operators$TradingName
+      }
     }
   }
 
-  if (is.null(Operators$TradingName)) {
-    agency_name <- Operators$OperatorShortName
-  } else {
-    if (is.na(Operators$TradingName)) {
-      agency_name <- Operators$OperatorShortName
-    } else {
-      agency_name <- Operators$TradingName
-    }
-  }
+
+
 
 
   agency <- data.frame(
@@ -355,19 +370,26 @@ transxchange_export <- function(obj,
                                     function(x){nrow(x) > 0},
                                     FUN.VALUE = TRUE, USE.NAMES = FALSE)]
     trips <- dplyr::bind_rows(trip_split)
-    trips_exclude <- trips[, c("trip_id", "exclude_days")]
-    trips_exclude <- trips_exclude[lengths(trips_exclude$exclude_days) > 0, ] # For lists
-    trips_exclude <- trips_exclude[!is.na(trips_exclude$exclude_days), ] # For NAs
-    if (nrow(trips_exclude) > 0) {
-      trips_exclude <- data.frame(
-        trip_id = rep(trips_exclude$trip_id, times = lengths(trips_exclude$exclude_days)),
-        date = as.Date(unlist(trips_exclude$exclude_days), origin = "1970-01-01"),
-        stringsAsFactors = FALSE
-      )
-      trips_exclude$exception_type <- 2
+    if(nrow(trips) > 0 ){
+      trips_exclude <- trips[, c("trip_id", "exclude_days")]
+      trips_exclude <- trips_exclude[lengths(trips_exclude$exclude_days) > 0, ] # For lists
+      trips_exclude <- trips_exclude[!is.na(trips_exclude$exclude_days), ] # For NAs
+      if (nrow(trips_exclude) > 0) {
+        trips_exclude <- data.frame(
+          trip_id = rep(trips_exclude$trip_id, times = lengths(trips_exclude$exclude_days)),
+          date = as.Date(unlist(trips_exclude$exclude_days), origin = "1970-01-01"),
+          stringsAsFactors = FALSE
+        )
+        trips_exclude$exception_type <- 2
+      } else {
+        rm(trips_exclude)
+      }
     } else {
-      rm(trips_exclude)
+      # Total Exclusion
+      return(NULL)
     }
+
+
   }
 
   # Step 1b: Do we have any Inclusions

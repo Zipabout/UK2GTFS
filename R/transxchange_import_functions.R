@@ -193,8 +193,8 @@ import_services <- function(service, full_import = TRUE) {
   EndDate <- xml2::xml_text(xml2::xml_find_first(service, ".//d1:EndDate"))
   DaysOfWeek <- paste(xml2::xml_name(xml2::xml_children(xml2::xml_find_first(service, ".//d1:DaysOfWeek"))), collapse = " ")
   StopRequirements <- import_simple(service, ".//d1:StopRequirements")
-  Origin <- import_simple(service, ".//d1:Origin")
-  Destination <- import_simple(service, ".//d1:Destination")
+  Origin <- import_simple_xml(service, ".//d1:Origin")
+  Destination <- import_simple_xml(service, ".//d1:Destination")
   LineName <- import_simple(service, ".//d1:LineName")
   BankHolidayNonOperation <- import_simple(service, ".//d1:BankHolidayNonOperation")
   if (length(BankHolidayNonOperation) == 0) {
@@ -213,7 +213,7 @@ import_services <- function(service, full_import = TRUE) {
   }
 
   ss <- xml2::xml_find_all(service, ".//d1:JourneyPattern")
-  Direction <- import_simple(ss, ".//d1:Direction")
+  Direction <- import_simple_xml(ss, ".//d1:Direction") # changeed from import_simple, to fix bug in Bus Archive
   VehicleType <- import_withmissing2(ss, ".//d1:Description", 3, "@id")
   # RouteRef <- import_simple(ss, ".//d1:RouteRef")
   RouteRef <- import_simple_xml(ss, ".//d1:RouteRef")
@@ -244,9 +244,9 @@ import_services <- function(service, full_import = TRUE) {
   # test fix ######
   DaysOperation <- xml2::xml_children(DaysOperation)
   DaysNonOperation <- xml2::xml_children(DaysNonOperation)
-  #################
+  # Seems to work now the if statements use any() on the length check.
 
-  if (xml2::xml_length(DaysOperation) > 0) {
+  if (any(xml2::xml_length(DaysOperation) > 0)) {
     DaysOperation_StartDate <- import_simple(DaysOperation, ".//d1:StartDate")
     DaysOperation_EndDate <- import_simple(DaysOperation, ".//d1:EndDate")
     DaysOperation_Note <- import_simple_xml(DaysOperation, ".//d1:Note")
@@ -261,7 +261,7 @@ import_services <- function(service, full_import = TRUE) {
     DaysOperation <- NULL
   }
 
-  if (xml2::xml_length(DaysNonOperation) > 0) {
+  if (any(xml2::xml_length(DaysNonOperation) > 0)) {
     DaysNonOperation_StartDate <- import_simple(DaysNonOperation, ".//d1:StartDate")
     DaysNonOperation_EndDate <- import_simple(DaysNonOperation, ".//d1:EndDate")
     DaysNonOperation_Note <- import_simple_xml(DaysNonOperation, ".//d1:Note")

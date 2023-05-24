@@ -82,13 +82,13 @@ transxchange2gtfs <- function(path_in,
   }
 
   if (length(path_in) > 1) {
-    message("Parsing provided xml files")
+    if(!silent){message("Parsing provided xml files")}
     files <- path_in[substr(path_in, nchar(path_in) - 4 + 1, nchar(path_in)) == ".xml"]
   } else {
     dir.create(file.path(tempdir(), "txc"))
-    message(paste0(Sys.time(), " Unzipping data to temp folder"))
+    if(!silent){ message(paste0(Sys.time(), " Unzipping data to temp folder"))}
     utils::unzip(path_in, exdir = file.path(tempdir(), "txc"))
-    message(paste0(Sys.time(), " Unzipping complete"))
+    if(!silent){ message(paste0(Sys.time(), " Unzipping complete"))}
 
     files <- list.files(file.path(tempdir(), "txc"),
                         pattern = ".xml",
@@ -100,7 +100,8 @@ transxchange2gtfs <- function(path_in,
   if(length(files) == 0){
     stop("No XML files found")
   } else {
-    message(length(files), " xml files have been found")
+    if(!silent){ message(length(files), " xml files have been found")}
+
   }
 
 
@@ -108,11 +109,12 @@ transxchange2gtfs <- function(path_in,
 
   if (ncores == 1) {
     message(paste0(Sys.time(), " Importing TransXchange files, single core"))
-    res_all <- pbapply::pblapply(files,
-                                 transxchange_import_try,
-                                 run_debug = TRUE,
-                                 full_import = FALSE,
-                                 try_mode = try_mode)
+    res_all <- purrr::map(files,
+                           transxchange_import_try,
+                           run_debug = TRUE,
+                           full_import = FALSE,
+                           try_mode = try_mode,
+                           .progress = TRUE)
     res_all_message <- res_all[sapply(res_all, class) == "character"]
     res_all <- res_all[sapply(res_all, class) == "list"]
     if(length(res_all_message) > 0){
@@ -122,14 +124,14 @@ transxchange2gtfs <- function(path_in,
       message(paste(res_all_message, collapse = ",  "))
     }
     message(paste0(Sys.time(), " Converting to GTFS, single core"))
-    gtfs_all <- pbapply::pblapply(res_all,
-                                  transxchange_export_try,
-                                  run_debug = TRUE,
-                                  cal = cal,
-                                  naptan = naptan,
-                                  scotland = scotland,
-                                  try_mode = try_mode
-    )
+    gtfs_all <- purrr::map(res_all,
+                          transxchange_export_try,
+                          run_debug = TRUE,
+                          cal = cal,
+                          naptan = naptan,
+                          scotland = scotland,
+                          try_mode = try_mode,
+                          .progress = TRUE)
   } else {
     message(paste0(Sys.time(), " Importing TransXchange files, multicore"))
 
@@ -158,6 +160,16 @@ transxchange2gtfs <- function(path_in,
       message("All files imported")
     }
 
+    # trim naptan, move less data to each worker
+    sids <- purrr::map(res_all, function(x){
+      s1 <- unique(x$JourneyPatternSections$From.StopPointRef)
+      s2 <- unique(x$JourneyPatternSections$To.StopPointRef)
+      s1 <- unique(c(s1,s2))
+      s1
+    })
+    sids <- unique(unlist(sids, use.names = FALSE))
+    naptan_trim <- naptan[naptan$stop_id %in% sids,]
+
     message(" ")
     message(paste0(Sys.time(), " Converting to GTFS, multicore"))
 
@@ -170,7 +182,7 @@ transxchange2gtfs <- function(path_in,
     gtfs_all <- foreach::`%dopar%`(boot, {
       transxchange_export_try(res_all[[i]],
                           cal = cal,
-                          naptan = naptan,
+                          naptan = naptan_trim,
                           scotland = scotland,
                           try_mode = try_mode)
       # setTxtProgressBar(pb, i)
@@ -194,10 +206,7 @@ transxchange2gtfs <- function(path_in,
     message("All files converted")
   }
 
-
-  message(" ")
-  message(paste0(Sys.time(), " Merging GTFS objects"))
-
+  if(!silent){ message(paste0(Sys.time(), " Merging GTFS objects"))}
 
   gtfs_merged <- try(gtfs_merge(gtfs_all, force = force_merge))
 

@@ -1,3 +1,5 @@
+# fls <- list.files("R", full.names = TRUE)
+# for(fl in fls){source(fl)}
 #' Import the .CIF file
 #'
 #' @details
@@ -6,11 +8,14 @@
 #' @param path Path to zipped folder for NPTDR data
 #' @param silent Logical, should messages be returned
 #' @param n_files debug option numerical vector for files to be passed e.g. 1:10
+#' @param enhance_stops Logical, if TRUE will download current NaPTAN to add in any missing stops
 #'
 #' @export
-nptdr2gtfs <- function(path = "C:/Users/malco/OneDrive - University of Leeds/Data/UK2GTFS/NPTDR/October-2004.zip",
+nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NPTDR/October-2004.zip",
                        silent = FALSE,
-                       n_files = NULL){
+                       n_files = NULL,
+                       enhance_stops = TRUE){
+
   checkmate::assert_file_exists(path, extension = "zip")
   dir.create(file.path(tempdir(),"nptdr_temp"))
 
@@ -25,17 +30,21 @@ nptdr2gtfs <- function(path = "C:/Users/malco/OneDrive - University of Leeds/Dat
   fls_naptan <- fls[grepl("naptan",fls, ignore.case = TRUE)]
   fls_ng <- fls[grepl("ng",fls, ignore.case = TRUE)]
 
+  #2007 Fix
+  fls_naptan <- fls_naptan[!grepl("Stops Data",fls_naptan)]
+  fls_naptan <- fls_naptan[!grepl("xml",fls_naptan)]
+
   # Check all present
   if(length(fls_naptan) != 1){
     stop(length(fls_naptan)," NaPTAN files found")
   }
 
   if(length(fls_ng) != 1){
-    stop(length(fls_ng)," NG files found")
+    warning(length(fls_ng)," NG files found")
   }
 
   if(!length(fls_admin) > 1){
-    stop(length(fls_ng)," Admin Area files found")
+    stop(length(fls_admin)," Admin Area files found")
   }
 
   # Unzip the Admin Area files
@@ -58,15 +67,18 @@ nptdr2gtfs <- function(path = "C:/Users/malco/OneDrive - University of Leeds/Dat
   # Import the NapTAN
   stops <- nptdr_naptan_import(fls_naptan)
 
+
   if(!silent){
     message(Sys.time()," Importing timetables")
   }
 
   # Import each CIF file
   if(is.null(n_files)){
-    res <- purrr::map(fls_cif, importCIF, .progress = "Reading files ")
+    res <- purrr::map(fls_cif, importCIF, .progress = "Reading files ",
+                      warn_missing_stops = !enhance_stops)
   } else {
-    res <- purrr::map(fls_cif[n_files], importCIF, .progress = "Reading files ")
+    res <- purrr::map(fls_cif[n_files], importCIF, .progress = "Reading files ",
+                      warn_missing_stops = !enhance_stops)
   }
 
   unlink(file.path(tempdir(),"nptdr_temp"), recursive = TRUE)
@@ -76,8 +88,7 @@ nptdr2gtfs <- function(path = "C:/Users/malco/OneDrive - University of Leeds/Dat
     message(Sys.time()," Processing results")
   }
 
-  # TODO: In order(stop_times$schedule, as.numeric(stop_times$departure_time))
-  res <- purrr::map(res, `[[`, "stop_times")
+  stop_times <- purrr::map(res, `[[`, "stop_times")
   location <- purrr::map(res, `[[`, "locations")
   schedule <- purrr::map(res, `[[`, "schedule")
   exceptions <- purrr::map(res, `[[`, "Exceptions")
@@ -96,7 +107,6 @@ nptdr2gtfs <- function(path = "C:/Users/malco/OneDrive - University of Leeds/Dat
   exceptions <- dplyr::bind_rows(exceptions, .id = "file_id")
   exceptions$schedule <- paste0(exceptions$file_id,"_",exceptions$schedule)
 
-
   timetables <- nptdr_schedule2routes(
     stop_times = stop_times,
     schedule = schedule,
@@ -106,16 +116,75 @@ nptdr2gtfs <- function(path = "C:/Users/malco/OneDrive - University of Leeds/Dat
   stops <- stops[stops$stop_id %in% unique(timetables$stop_times$stop_id),]
   location <- dplyr::bind_rows(location, .id = "file_id")
   location <- location[,c("stop_id","stop_name","easting","northing")]
-  location <- sf::st_as_sf(location, coords = c("easting","northing"), crs = 27700)
+  location <- location[!duplicated(location$stop_id),]
+  location$stop_code <- NA_character_
 
-  summary(location$stop_id %in% timetables$stop_times$stop_id)
-  summary(timetables$stop_times$stop_id %in% location$stop_id)
-  summary(location$stop_id %in% stops$stop_id)
+  # Add in any missing stops
+  location_extra <- location[!location$stop_id %in% stops$stop_id,]
 
+
+
+
+
+  if(nrow(location_extra) > 0){
+    # Most location have 5/6 digit coordinates by some have 8
+    location_extra <- location_extra[!is.na(location_extra$easting),]
+    location_extra$easting <- trimws(location_extra$easting)
+    location_extra$northing <- trimws(location_extra$northing)
+    location_extra$nchar <- nchar(location_extra$easting)
+    location_extra <- location_extra[location_extra$nchar > 4,]
+    suppressWarnings(location_extra$easting <- as.numeric(location_extra$easting))
+    suppressWarnings(location_extra$northing <- as.numeric(location_extra$northing))
+    location_extra <- location_extra[!is.na(location_extra$northing) & !is.na(location_extra$easting), ]
+    location_extra$easting <- dplyr::if_else(location_extra$nchar == 8, location_extra$easting/100, location_extra$easting)
+    location_extra$northing <- dplyr::if_else(location_extra$nchar == 8, location_extra$northing/100, location_extra$northing)
+  }
+
+
+  if(nrow(location_extra) > 0){
+    location_extra <- sf::st_as_sf(location_extra, coords = c("easting","northing"), crs = 27700)
+    location_extra <- sf::st_transform(location_extra, 4326)
+    location_extra <- cbind(sf::st_drop_geometry(location_extra), sf::st_coordinates(location_extra))
+    names(location_extra) <- c("stop_id","stop_name","stop_code","stop_lon","stop_lat")
+
+    # Filter out stops outside the UK
+    ukbbox = c(-9,49,2,61)
+    location_extra <- location_extra[
+      location_extra$stop_lon > ukbbox[1] &
+        location_extra$stop_lat > ukbbox[2] &
+        location_extra$stop_lon < ukbbox[3] &
+        location_extra$stop_lat < ukbbox[4]
+      ,]
+
+    location_extra <- location_extra[,names(stops)]
+    location_extra <- location_extra[!is.na(location_extra$stop_lon),]
+    stops <- rbind(stops, location_extra)
+  }
+
+  if(enhance_stops){
+    stops_missing <- unique(timetables$stop_times$stop_id[!timetables$stop_times$stop_id %in% stops$stop_id])
+
+    if(length(stops_missing) > 0){
+      utils::data("naptan_missing")
+      naptan <- get_naptan( naptan_extra = naptan_missing)
+      naptan <- naptan[naptan$stop_id %in% stops_missing,]
+      naptan <- naptan[,names(stops)]
+      if(nrow(naptan) > 0){
+        stops <- rbind(stops, naptan)
+      }
+
+    }
+  }
+
+  stops_missing <- unique(timetables$stop_times$stop_id[!timetables$stop_times$stop_id %in% stops$stop_id])
+  if(length(stops_missing) > 0){
+    warning(length(stops_missing)," stops (",round(length(stops_missing)/nrow(stops)*100,1),
+            "%) in stop_times.txt are missing from stops.txt\n",
+            "These are likley to be temporary or moveable stops\n",
+            "Use gtfs_clean to remove them")
+  }
   timetables$stops <- stops
 
-  # foo = timetables$stop_times[!timetables$stop_times$stop_id %in% stops$stop_id,]
-  # foo = foo[!duplicated(foo$stop_id),]
 
   return(timetables)
 
@@ -130,16 +199,28 @@ nptdr2gtfs <- function(path = "C:/Users/malco/OneDrive - University of Leeds/Dat
 #' Imports the CIF file and returns data.frame
 #'
 #' @param path_naptan Path to naptan file
+#' @param ukbbox Bounding box for the UK
 #' @noRd
-nptdr_naptan_import <- function(path_naptan){
+nptdr_naptan_import <- function(path_naptan, ukbbox = c(-9,49,2,61)){
 
   dir.create(file.path(tempdir(),"nptdr_temp","naptan"))
 
   utils::unzip(path_naptan, exdir = file.path(tempdir(),"nptdr_temp","naptan"))
 
-  naptan_stops <- utils::read.csv(file.path(tempdir(),"nptdr_temp","naptan","stops.csv"))
-  naptan_stops <- naptan_stops[,c("ATCOCode","Lon","Lat","CommonName")]
-  names(naptan_stops) <- c("stop_id","stop_lon","stop_lat","stop_name")
+  flnap <- list.files(file.path(tempdir(),"nptdr_temp","naptan"), recursive = TRUE, full.names = TRUE)
+  flnap <- flnap[grepl("stops.csv", flnap, ignore.case = TRUE)]
+
+  naptan_stops <- utils::read.csv(flnap)
+  naptan_stops <- naptan_stops[,c("ATCOCode","Lon","Lat","CommonName","SMSNumber")]
+  names(naptan_stops) <- c("stop_id","stop_lon","stop_lat","stop_name","stop_code")
+
+  # Filter out stops outside the UK
+  naptan_stops <- naptan_stops[
+                 naptan_stops$stop_lon > ukbbox[1] &
+                 naptan_stops$stop_lat > ukbbox[2] &
+                 naptan_stops$stop_lon < ukbbox[3] &
+                 naptan_stops$stop_lat < ukbbox[4]
+                 ,]
 
   unlink(file.path(tempdir(),"nptdr_temp","naptan"), recursive = TRUE)
 
@@ -154,8 +235,9 @@ nptdr_naptan_import <- function(path_naptan){
 #' Imports the CIF file and returns data.frame
 #'
 #' @param file Path to .CIF file
+#' @warn_missing_stops logical, should waring be given for missing stops?
 #' @noRd
-importCIF <- function(file) {
+importCIF <- function(file, warn_missing_stops = FALSE ) {
 
   # see https://slideplayer.com/slide/14931535/
   raw <- readLines(
@@ -164,9 +246,10 @@ importCIF <- function(file) {
   )
   types <- substr(raw, 1, 2)
 
-  # break out each part of the file
-  # Header Record
-  # Not Needed
+  # Sometime the file is empty
+  if(length(raw) < 3){
+    return(NULL)
+  }
 
   # AT     QB     QI     QL     QO     QS     QT     VS
   # 1   4410 478789   4410  11692  11692  11692      1
@@ -176,6 +259,17 @@ importCIF <- function(file) {
   if(any(!types_have %in% known_types)){
     stop("Unknown types in types ",paste(types_have[!types_have %in% known_types], collapse = ", "))
   }
+
+  # if(any(!known_types %in% types_have)){
+  #   stop("Missing types in types ",paste(known_types[!known_types %in% types_have], collapse = ", "))
+  # }
+
+  # Mode information from file name
+  file_mode = strsplit(file,"/", fixed = TRUE)[[1]]
+  file_mode = file_mode[length(file_mode)]
+  file_mode = strsplit(file,"_", fixed = TRUE)[[1]]
+  file_mode = file_mode[length(file_mode)]
+  file_mode = gsub(".CIF","",file_mode, fixed = TRUE)
 
   # QS - Service Header
   # QO - Origin
@@ -203,8 +297,20 @@ importCIF <- function(file) {
   QR <- raw[types == "QR"] # Bus Repetitions
 
 
-  hd <- raw[1] # Some info not sure what
+  HD <- raw[1] # Some info not sure what
   tl <- raw[length(raw)]
+
+  # Header
+  HD <- iotools::dstrfw(
+    x = HD,
+    col_types = rep("character", 7),
+    widths = c(
+      8,2,2,32,16,8,6
+    )
+  )
+  names(HD) <- c(
+    "file_type","major_version","minor_version",
+    "originator","source","date","time")
 
 
   # Journey Header, Service
@@ -232,9 +338,12 @@ importCIF <- function(file) {
   QS$rowID <- seq(from = 1, to = length(types))[types == "QS"]
 
   # Add vehicle type if missing
-  vt <- substr(hd, 41, 46)
-  vt <- trimws(vt)
-  QS$vehicle_type[is.na(QS$vehicle_type)] <- vt
+  # vt <- substr(hd, 41, 46)
+  # vt <- trimws(vt)
+  # if(nchar(vt) == 0){
+  #   vt <- file_mode
+  # }
+  QS$vehicle_type[is.na(QS$vehicle_type)] <- file_mode
 
 
   # Origin Stop
@@ -353,17 +462,6 @@ importCIF <- function(file) {
   }
 
 
-  # Header
-  hd <- iotools::dstrfw(
-    x = hd,
-    col_types = rep("character", 7),
-    widths = c(8,2,2,32,16,8,6)
-  )
-  names(hd) <- c("file_type", "version_major", "version_minor",
-                 "originator","source","production_date","production_time")
-  hd <- strip_whitespace(hd)
-
-
   stop_times <- dplyr::bind_rows(list(QO, QI, QT))
   stop_times <- stop_times[order(stop_times$rowID), ]
   stop_times$schedule <- as.integer(as.character(cut(stop_times$rowID,
@@ -384,6 +482,19 @@ importCIF <- function(file) {
                                             stop_times$departure_time,
                                             stop_times$arrival_time)
 
+
+  #Occasional bugs with times e.g 00-1 @ $
+  suppressWarnings(chk <- is.na(as.numeric(stop_times$departure_time)))
+  if(any(chk)){
+    warning("Invalid departure_time (e.g '@   ') replaced with 0000")
+  }
+  stop_times$departure_time[chk] <- "0000"
+
+  suppressWarnings(chk <- is.na(as.numeric(stop_times$arrival_time)))
+  if(any(chk)){
+    warning("Invalid arrival_time (e.g '@   ') replaced with 0000")
+  }
+  stop_times$arrival_time[chk] <- "0000"
 
   stop_times <- stop_times[order(stop_times$schedule,as.numeric(stop_times$departure_time)), ]
   stop_times$stop_sequence <- sequence(rle(stop_times$schedule)$lengths)
@@ -414,9 +525,10 @@ importCIF <- function(file) {
       st_sub$arrival_time <- sprintf("%02d%02d", st_sub$arrival_time@day *
                                        24 + st_sub$arrival_time@hour,
                                      lubridate::minute(st_sub$arrival_time))
-      st_sub$schedule <- qr_sub$schedule
+      #st_sub$schedule <- qr_sub$schedule
+      st_sub$schedule <- as.integer(qr_sub$rowID)
       qs_sub$rowID <- as.integer(qr_sub$rowID)
-      qs_sub$uid <- qr_sub$uid
+      qs_sub$uid <- paste0(qr_sub$uid,"_",i)
       qs_sub$running_board  <- ifelse(is.na(qr_sub$running_board),qs_sub$running_board,qr_sub$running_board)
       qs_sub$vehicle_type   <- ifelse(is.na(qr_sub$vehicle_type),qs_sub$vehicle_type,qr_sub$vehicle_type)
 
@@ -433,11 +545,19 @@ importCIF <- function(file) {
 
   }
 
-
+  QB <- QB[!duplicated(QB$stop_id),] # Handle occasional duplicates
   locs <- dplyr::left_join(QL, QB, by = "stop_id")
 
+  # Check for missing stops
+  if(warn_missing_stops){
+    chk <- unique(stop_times$stop_id)
+    chk <- chk[!chk %in% locs$stop_id]
+    if(length(chk) > 0){
+      warning("In '..",substr(file,nchar(file) - 17,nchar(file)),"' there ",length(chk)," are stops without locations")
+    }
+  }
 
-  results <- list(stop_times, locs, QS, hd, tl, QE)
+  results <- list(stop_times, locs, QS, HD, tl, QE)
   names(results) <- c("stop_times", "locations","schedule","Header", "Footer", "Exceptions")
 
   return(results)
@@ -467,6 +587,7 @@ nptdr_schedule2routes <- function(stop_times, schedule, exceptions, silent = TRU
   # Convert Activity to pickup_type and drop_off_type
   stop_times$activity[is.na(stop_times$activity) & stop_times$stop_sequence == 1] <- "TB" # No activity specified at start
 
+  utils::data("activity_codes")
   upoffs <- clean_activities2(stop_times$activity)
   stop_times <- cbind(stop_times, upoffs)
 
@@ -490,14 +611,13 @@ nptdr_schedule2routes <- function(stop_times, schedule, exceptions, silent = TRU
   utils::data(historic_bank_holidays)
 
   # build the calendar file
-  res <- nptdr_makeCalendar(schedule = schedule, exceptions = exceptions,
+  res <- nptdr_makeCalendar(schedule = schedule,
+                            exceptions = exceptions,
                             historic_bank_holidays = historic_bank_holidays)
   calendar <- res[[1]]
   calendar_dates <- res[[2]]
-  # rm(res)
 
-
-  # clean calednars
+  # clean calendars
   calendar_dates_hash <- calendar_dates
   calendar_dates_hash$hash <- as.numeric(calendar_dates_hash$date) + calendar_dates_hash$exception_type / 10
   calendar_dates_hash <- calendar_dates_hash[,c("UID","hash")]
@@ -507,42 +627,47 @@ nptdr_schedule2routes <- function(stop_times, schedule, exceptions, silent = TRU
                                           hash = digest::digest(hash, algo = "xxhash32"))
 
   calendar <- dplyr::left_join(calendar, calendar_dates_hash, by = "UID")
+  calendar$hash[is.na(calendar$hash)] <- "no_exceptions"
 
-  names(calendar)[names(calendar) == "UID"] <- "trip_id"
+
   calendar$start_date <- as.character(calendar$start_date)
   calendar$start_date <- gsub("-", "", calendar$start_date)
   calendar$end_date <- as.character(calendar$end_date)
   calendar$end_date <- gsub("-", "", calendar$end_date)
 
 
-  calendar$service_id <- seq_len(nrow(calendar))
-  calendar <- calendar[,c("trip_id","service_id","start_date","end_date",
+  #calendar$service_id <- seq_len(nrow(calendar))
+  calendar <- calendar[,c("UID","start_date","end_date",
                           "monday","tuesday","wednesday","thursday","friday",
                           "saturday","sunday","schedule","route_direction","hash")]
-  calendar$is_dup <- duplicated(calendar[,c("start_date","end_date",
-                                            "monday","tuesday","wednesday",
-                                            "thursday","friday",
-                                            "saturday","sunday","hash")])
-  breaks <- calendar$service_id[!calendar$is_dup]
-  breaks <- breaks -1
-  calendar$service_id <- as.integer(as.character(cut(calendar$service_id,
-                                                      c(breaks, nrow(calendar)),
-                                                      labels = breaks
-  ))) + 1
 
-  trips <- calendar
-  trips <- trips[,c("trip_id","service_id","schedule","route_direction")]
+  calendar_unique <- unique(calendar[,c("start_date","end_date",
+                                 "monday","tuesday","wednesday",
+                                 "thursday","friday",
+                                 "saturday","sunday","hash")])
+  calendar_unique$service_id <- seq(1, nrow(calendar_unique))
 
-  calendar_dates_hash <- calendar[,c("trip_id","service_id")]
-  calendar_dates <- dplyr::left_join(calendar_dates, calendar_dates_hash, by = c("UID" = "trip_id"))
+  calendar <- dplyr::left_join(calendar, calendar_unique, by = c("start_date","end_date",
+                                                                 "monday","tuesday","wednesday",
+                                                                 "thursday","friday",
+                                                                 "saturday","sunday","hash"))
+  calendar_dates <- dplyr::left_join(calendar_dates, calendar[,c("UID","service_id")], by = "UID")
   calendar_dates <- calendar_dates[,c("service_id","date","exception_type")]
   calendar_dates <- unique(calendar_dates)
 
-  calendar <- calendar[!calendar$is_dup,]
-  calendar <- calendar[,c("service_id","start_date","end_date",
-                       "monday","tuesday","wednesday","thursday","friday",
-                       "saturday","sunday")]
+  names(calendar)[names(calendar) == "UID"] <- "trip_id"
 
+  trips <- calendar
+
+  calendar <- calendar[,c("service_id","start_date","end_date",
+                          "monday","tuesday","wednesday","thursday","friday",
+                          "saturday","sunday")]
+  calendar <- calendar[!duplicated(calendar$service_id),]
+
+  # Remove stop times for completely excluded trips
+  stop_times <- stop_times[stop_times$schedule %in% trips$schedule,]
+
+  trips <- trips[,c("trip_id","service_id","schedule","route_direction")]
   trips$direction_id <- 0
   trips$direction_id[trips$route_direction == "O"] <- 1
   trips$route_direction <- NULL
@@ -572,6 +697,7 @@ nptdr_schedule2routes <- function(stop_times, schedule, exceptions, silent = TRU
   ))) + 1
 
   routes_join <- routes[,c("uid","route_id")]
+  routes_join <- routes_join[!duplicated(routes_join$uid),]
   routes <- dplyr::group_by(routes, route_id)
   routes <- dplyr::summarise(routes,
                              agency_id = unique(operator_code),
@@ -582,6 +708,7 @@ nptdr_schedule2routes <- function(stop_times, schedule, exceptions, silent = TRU
 
 
   routes$route_type[routes$route_type == ""] <- NA
+
   routes$route_type <- sapply(routes$route_type, clean_route_type, guess_bus = TRUE)
 
 
@@ -595,13 +722,16 @@ nptdr_schedule2routes <- function(stop_times, schedule, exceptions, silent = TRU
   agency$agency_url <- "http://www.unknownsite.com"
   agency$agency_timezone <- "Europe/London"
 
-
-
   # Ditch unneeded columns
   routes <- routes[, c("route_id", "agency_id", "route_short_name", "route_long_name", "route_type")]
   trips <- trips[, c("trip_id", "route_id", "service_id","direction_id")]
   stop_times <- stop_times[, c("trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence", "pickup_type", "drop_off_type")]
   calendar <- calendar[, c("service_id", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "start_date", "end_date")]
+
+  # Fill in missing routes longname
+  routes$route_long_name <- dplyr::if_else(is.na(routes$route_long_name),
+                                           "",
+                                           routes$route_long_name)
 
 
   # Fix Times
