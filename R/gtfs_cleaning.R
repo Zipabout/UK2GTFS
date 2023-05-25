@@ -131,13 +131,13 @@ gtfs_clean <- function(gtfs) {
 
   # 3 Remove empty route_type 
   gtfs$routes$route_type[is.na(gtfs$routes$route_type)] <- "-1"
+  gtfs$routes$route_type[gtfs$routes$route_type == ""] <- "-1"
   # gtfs$routes %>% filter(!is.na(route_type))
   
   # Replace "" agency_id with dummy name
   gtfs$agency$agency_id[is.na(gtfs$agency$agency_id)] <- "MISSINGAGENCY"
   gtfs$routes$agency_id[is.na(gtfs$routes$agency_id)] <- "MISSINGAGENCY"
   gtfs$agency$agency_id[is.na(gtfs$agency$agency_id)] <- "MISSINGAGENCY"
-
   gtfs$agency$agency_id[gtfs$agency$agency_id == ""] <- "MISSINGAGENCY"
   gtfs$routes$agency_id[gtfs$routes$agency_id == ""] <- "MISSINGAGENCY"
   gtfs$agency$agency_name[gtfs$agency$agency_name == ""] <- "MISSINGAGENCY"
