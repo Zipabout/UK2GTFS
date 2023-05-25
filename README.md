@@ -72,7 +72,7 @@ Install the package with **remotes** as follows:
 
 ``` r
 install.packages("remotes") # If you do not already have the remotes package
-remotes::install_github("ITSleeds/UK2GTFS")
+remotes::install_github("Zipabout/UK2GTFS", ref="production")
 library(UK2GTFS)
 ```
 
