@@ -112,7 +112,8 @@ schedule2routes <- function(stop_times, schedule, silent = TRUE, ncores = 1) {
 
   train_status <- data.frame(
     train_status = c("B", "F", "P", "S", "T", "1", "2", "3", "4", "5"),
-    route_type = c(3, NA, 2, 4, NA, 2, NA, NA, 4, 3),
+#    route_type = c(3, NA, 2, 4, NA, 2, NA, NA, 4, 3),
+    route_type = c(3, 0, 2, 4, 0, 2, 0, 0, 4, 3),
     stringsAsFactors = FALSE
   )
 
