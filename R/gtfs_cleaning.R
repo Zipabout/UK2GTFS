@@ -124,31 +124,31 @@ gtfs_fast_trips <- function(gtfs, maxspeed = 30) {
 #' @export
 gtfs_clean <- function(gtfs) {
   # 0 Remove routes with no valid agency_id
-  message(paste0(Sys.time(), " Remove routes with no valid agency_id")) # nolint
   gtfs$routes <- gtfs$routes[gtfs$routes$agency_id %in% unique(gtfs$agency$agency_id), ]  # nolint
+  message(paste0(Sys.time(), " Removed routes with no valid agency_id")) # nolint
 
   # 1 Remove empty route_type
-  message(paste0(Sys.time(), " Remove empty route_type")) # nolint
   #' gtfs$routes$route_type[is.na(gtfs$routes$route_type)] <- "-1" # nolint
   gtfs$routes <- gtfs$routes[!is.na(gtfs$routes$route_type), ]  # nolint
+  message(paste0(Sys.time(), " Removed empty route_type")) # nolint
 
   # 2 Remove trips with no valid route_id
-  message(paste0(Sys.time(), " Remove trips with no valid route_id")) # nolint
   gtfs$trips <- gtfs$trips[gtfs$trips$route_id %in% unique(gtfs$routes$route_id), ]  # nolint
+  message(paste0(Sys.time(), " Removed trips with no valid route_id")) # nolint
 
   # 3 Remove stop times with no valid location or trip_id
-  message(paste0(Sys.time(), " Remove stop times with no valid location or trip_id")) # nolint
   gtfs$stop_times <- gtfs$stop_times[gtfs$stop_times$stop_id %in% unique(gtfs$stops$stop_id), ]  # nolint
   gtfs$stop_times <- gtfs$stop_times[gtfs$stop_times$trip_id %in% unique(gtfs$trips$trip_id), ]  # nolint
+  message(paste0(Sys.time(), " Removed stop times with no valid location or trip_id")) # nolint
 
   # 4 Remove stops that are never used
-  message(paste0(Sys.time(), " Remove stops that are never used")) # nolint
   gtfs$stops <- gtfs$stops[gtfs$stops$stop_id %in% unique(gtfs$stop_times$stop_id), ]  # nolint
+  message(paste0(Sys.time(), " Removed stops that are never used")) # nolint
 
   # 5 Remove calendar items that are never used
-  message(paste0(Sys.time(), " Remove calendar items that are never used")) # nolint
   gtfs$calendar <- gtfs$calendar[gtfs$calendar$service_id %in% unique(gtfs$trips$service_id), ]  # nolint
   gtfs$calendar_dates <- gtfs$calendar_dates[gtfs$calendar_dates$service_id %in% unique(gtfs$trips$service_id), ]  # nolint
+  message(paste0(Sys.time(), " Removed calendar items that are never used")) # nolint
 
 
   #' Replace "" agency_id with dummy name
