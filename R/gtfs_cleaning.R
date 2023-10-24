@@ -226,7 +226,32 @@ gtfs_clean <- function(gtfs, removeNonPublic =  FALSE) {
   gtfs$routes$agency_id[gtfs$routes$agency_id == ""] <- "MISSINGAGENCY"
   gtfs$agency$agency_name[gtfs$agency$agency_name == ""] <- "MISSINGAGENCY"
 
-  
+  # 4 remove calls, trips and routes that have an empty route_type (non public services)
+  if (removeNonPublic)
+  {
+    joinedTrips <- merge(gtfs$trips, gtfs$routes, by = "route_id", all.x = TRUE)
+
+    joinedCalls <- merge(gtfs$stop_times, joinedTrips, by = "trip_id", all.x = TRUE)
+    filteredCalls <- joinedCalls[ !is.na( joinedCalls$route_type ), ]
+    gtfs$stop_times <- filteredCalls[, names( gtfs$stop_times )]
+
+    joinedCalendar <- merge(gtfs$calendar, joinedTrips, by = "service_id", all.x = TRUE)
+    filteredCalendar <- joinedCalendar[ !is.na( joinedCalendar$route_type ), ]
+    gtfs$calendar <- filteredCalendar[, names( gtfs$calendar )]
+
+    joinedCalendarDates <- merge(gtfs$calendar_dates, joinedTrips, by = "service_id", all.x = TRUE)
+    filteredCalendarDates <- joinedCalendarDates[ !is.na( joinedCalendarDates$route_type ), ]
+    gtfs$calendar_dates <- filteredCalendarDates[, names( gtfs$calendar_dates )]
+
+    filteredTrips <- joinedTrips[ !is.na( joinedTrips$route_type ), ]
+    gtfs$trips <- filteredTrips[, names( gtfs$trips )]
+
+    gtfs$routes <- gtfs$routes[ !is.na( gtfs$routes$route_type ), ]
+  }
+
+  return(gtfs)
+}
+
 # gtfs_clean <- function(gtfs) {
 #   # 0 Remove routes with no valid agency_id
 #   gtfs$routes <- gtfs$routes[gtfs$routes$agency_id %in% unique(gtfs$agency$agency_id), ]  # nolint
@@ -264,30 +289,3 @@ gtfs_clean <- function(gtfs, removeNonPublic =  FALSE) {
 #   #' gtfs$agency$agency_id[gtfs$agency$agency_id == ""] <- "MISSINGAGENCY"
 #   #' gtfs$routes$agency_id[gtfs$routes$agency_id == ""] <- "MISSINGAGENCY"
 #   #' gtfs$agency$agency_name[gtfs$agency$agency_name == ""] <- "MISSINGAGENCY"
-
-  
-  # 4 remove calls, trips and routes that have an empty route_type (non public services)
-  if (removeNonPublic)
-  {
-    joinedTrips <- merge(gtfs$trips, gtfs$routes, by = "route_id", all.x = TRUE)
-
-    joinedCalls <- merge(gtfs$stop_times, joinedTrips, by = "trip_id", all.x = TRUE)
-    filteredCalls <- joinedCalls[ !is.na( joinedCalls$route_type ), ]
-    gtfs$stop_times <- filteredCalls[, names( gtfs$stop_times )]
-
-    joinedCalendar <- merge(gtfs$calendar, joinedTrips, by = "service_id", all.x = TRUE)
-    filteredCalendar <- joinedCalendar[ !is.na( joinedCalendar$route_type ), ]
-    gtfs$calendar <- filteredCalendar[, names( gtfs$calendar )]
-
-    joinedCalendarDates <- merge(gtfs$calendar_dates, joinedTrips, by = "service_id", all.x = TRUE)
-    filteredCalendarDates <- joinedCalendarDates[ !is.na( joinedCalendarDates$route_type ), ]
-    gtfs$calendar_dates <- filteredCalendarDates[, names( gtfs$calendar_dates )]
-
-    filteredTrips <- joinedTrips[ !is.na( joinedTrips$route_type ), ]
-    gtfs$trips <- filteredTrips[, names( gtfs$trips )]
-
-    gtfs$routes <- gtfs$routes[ !is.na( gtfs$routes$route_type ), ]
-  }
-
-  return(gtfs)
-}
