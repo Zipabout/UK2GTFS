@@ -9,12 +9,14 @@
 #' @param silent Logical, should messages be returned
 #' @param n_files debug option numerical vector for files to be passed e.g. 1:10
 #' @param enhance_stops Logical, if TRUE will download current NaPTAN to add in any missing stops
+#' @param naptan Naptan Locations from get_naptan()
 #'
 #' @export
-nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NPTDR/October-2004.zip",
+nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NPTDR/October-2006.zip",
                        silent = FALSE,
                        n_files = NULL,
-                       enhance_stops = TRUE){
+                       enhance_stops = TRUE,
+                       naptan = get_naptan()){
 
   checkmate::assert_file_exists(path, extension = "zip")
   dir.create(file.path(tempdir(),"nptdr_temp"))
@@ -126,6 +128,9 @@ nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NP
 
 
 
+
+
+
   if(nrow(location_extra) > 0){
     # Most location have 5/6 digit coordinates by some have 8
     location_extra <- location_extra[!is.na(location_extra$easting),]
@@ -165,8 +170,6 @@ nptdr2gtfs <- function(path = "D:/OneDrive - University of Leeds/Data/UK2GTFS/NP
     stops_missing <- unique(timetables$stop_times$stop_id[!timetables$stop_times$stop_id %in% stops$stop_id])
 
     if(length(stops_missing) > 0){
-      utils::data("naptan_missing")
-      naptan <- get_naptan( naptan_extra = naptan_missing)
       naptan <- naptan[naptan$stop_id %in% stops_missing,]
       naptan <- naptan[,names(stops)]
       if(nrow(naptan) > 0){
@@ -235,7 +238,7 @@ nptdr_naptan_import <- function(path_naptan, ukbbox = c(-9,49,2,61)){
 #' Imports the CIF file and returns data.frame
 #'
 #' @param file Path to .CIF file
-#' @warn_missing_stops logical, should waring be given for missing stops?
+#' @param warn_missing_stops logical, should warning be given for missing stops?
 #' @noRd
 importCIF <- function(file, warn_missing_stops = FALSE ) {
 
@@ -343,7 +346,9 @@ importCIF <- function(file, warn_missing_stops = FALSE ) {
   # if(nchar(vt) == 0){
   #   vt <- file_mode
   # }
-  QS$vehicle_type[is.na(QS$vehicle_type)] <- file_mode
+  good_types <- c("BUS","COACH","TRAIN","Bus","FERRY","METRO","Tram")
+
+  QS$vehicle_type[!QS$vehicle_type %in% good_types] <- file_mode
 
 
   # Origin Stop

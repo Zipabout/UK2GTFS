@@ -8,8 +8,8 @@ atoc2gtfs(
   path_in,
   silent = TRUE,
   ncores = 1,
-  locations = tiplocs,
-  agency = atoc_agency,
+  locations = "tiplocs",
+  agency = "atoc_agency",
   shapes = FALSE,
   transfers = TRUE,
   missing_tiplocs = TRUE
@@ -18,7 +18,7 @@ atoc2gtfs(
 \arguments{
 \item{path_in}{Character, path to ATOC file e.g."C:/input/ttis123.zip"}
 
-\item{silent}{Logical, should progress messages be surpressed (default TRUE)}
+\item{silent}{Logical, should progress messages be suppressed (default TRUE)}
 
 \item{ncores}{Numeric, When parallel processing how many cores to use
 (default 1)}
@@ -32,7 +32,7 @@ atoc2gtfs(
 \item{transfers}{Logical, should transfers.txt be generated (default TRUE)}
 
 \item{missing_tiplocs}{Logical, if locations = tiplocs, then will check for
-any missing tiplocs agains the main file and add them.(default TRUE)}
+any missing tiplocs against the main file and add them.(default TRUE)}
 }
 \description{
 Convert ATOC CIF files to GTFS
@@ -55,7 +55,7 @@ Locations
   Agency
 
   The ATOC files do not contain the necessary information to build the
-  agency.txt file. Therfore this data is provided with the package. You can
+  agency.txt file. Therefore this data is provided with the package. You can
   also pass your own data frame of agency information.
 }
 \seealso{

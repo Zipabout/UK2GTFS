@@ -4,18 +4,24 @@
 \alias{gtfs_fast_trips}
 \title{Find fast trips}
 \usage{
-gtfs_fast_trips(gtfs, maxspeed = 30)
+gtfs_fast_trips(gtfs, maxspeed = 83, routes = TRUE)
 }
 \arguments{
 \item{gtfs}{list of gtfs tables}
 
-\item{maxspeed}{the maximum allowed speed in metres per second default 30 m/s (about 70 mph)}
+\item{maxspeed}{the maximum allowed speed in metres per second default 83 m/s
+(about 185 mph the max speed of trains on HS1 line)}
+
+\item{routes}{logical, do one trip per route, faster but may miss some trips}
 }
 \description{
-Fast trips can idetify problems with the input data or converion process
-This fucntion returns trip_ids for trips that exceed max speed.
+Fast trips can identify problems with the input data or
+  conversion process. This function returns trip_ids for trips that exceed
+  `maxspeed`.
 }
 \details{
-The fucntion looks a straightline distance between the first and middle stop
-to allow for circular routes.
+The function looks a straight line distance between each stop and
+  detects the fastest segment of the journey. A common cause of errors is
+  that a stop is in the wrong location so a bus can appear to teleport
+  across the country in seconds.
 }
