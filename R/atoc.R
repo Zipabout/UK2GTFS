@@ -3,7 +3,7 @@
 #' Convert ATOC CIF files to GTFS
 #'
 #' @param path_in Character, path to ATOC file e.g."C:/input/ttis123.zip"
-#' @param silent Logical, should progress messages be surpressed (default TRUE)
+#' @param silent Logical, should progress messages be suppressed (default TRUE)
 #' @param ncores Numeric, When parallel processing how many cores to use
 #'   (default 1)
 #' @param locations where to get tiploc locations (see details)
@@ -11,7 +11,7 @@
 #' @param shapes Logical, should shapes.txt be generated (default FALSE)
 #' @param transfers Logical, should transfers.txt be generated (default TRUE)
 #' @param missing_tiplocs Logical, if locations = tiplocs, then will check for
-#'   any missing tiplocs agains the main file and add them.(default TRUE)
+#'   any missing tiplocs against the main file and add them.(default TRUE)
 #' @family main
 #'
 #' @details Locations
@@ -31,7 +31,7 @@
 #'   Agency
 #'
 #'   The ATOC files do not contain the necessary information to build the
-#'   agency.txt file. Therfore this data is provided with the package. You can
+#'   agency.txt file. Therefore this data is provided with the package. You can
 #'   also pass your own data frame of agency information.
 #'
 #'
@@ -40,11 +40,26 @@
 atoc2gtfs <- function(path_in,
                       silent = TRUE,
                       ncores = 1,
-                      locations = tiplocs,
-                      agency = atoc_agency,
+                      locations = "tiplocs",
+                      agency = "atoc_agency",
                       shapes = FALSE,
                       transfers = TRUE,
                       missing_tiplocs = TRUE) {
+
+  if(inherits(locations,"character")){
+    if(locations == "tiplocs"){
+      load_data("tiplocs")
+      locations = tiplocs
+    }
+  }
+
+  if(inherits(agency,"character")){
+    if(agency == "atoc_agency"){
+      load_data("atoc_agency")
+      agency = atoc_agency
+    }
+  }
+
   # Checkmates
   checkmate::assert_character(path_in, len = 1)
   checkmate::assert_file_exists(path_in)
@@ -97,6 +112,7 @@ atoc2gtfs <- function(path_in,
       ncores = 1,
       full_import = TRUE
   )
+
 
   # Get the Station Locations
   # Are locations provided?
@@ -190,6 +206,7 @@ atoc2gtfs <- function(path_in,
   # Main Timetable Build
   timetables <- schedule2routes(
     stop_times = stop_times,
+    stops = stops,
     schedule = schedule,
     silent = silent,
     ncores = ncores
@@ -214,7 +231,7 @@ atoc2gtfs <- function(path_in,
 
   # Build Shapes
   if (shapes) {
-    message("Shapes are not yet supported")
+    message("Shapes are not yet supported, try ATOC_shapes()")
   }
 
   return(timetables)

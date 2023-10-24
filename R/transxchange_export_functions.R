@@ -187,7 +187,9 @@ clean_route_type <- function(rt, guess_bus = FALSE) {
     return(1)
   } else if (rt == "air") {
     return(1100)
-  } else {
+  } else if (rt == "AIR") {
+    return(1100)
+  }else {
     if(guess_bus){
       return(3)
     } else {
@@ -339,7 +341,7 @@ clean_activity <- function(x, type) {
 
 
 
-#' Expan stop_times2
+#' Expand stop_times2
 #' ????
 #' @param i desc
 #' @param jps desc
@@ -361,10 +363,10 @@ expand_stop_times2 <- function(i, jps, trips) {
     spto = jps_sub$To.StopPointRef[1:(nrow(jps_sub)-1)]
     if(!all(spfm == spto)){
       jps_sub_new <- try(reorder_jps(jps_sub), silent = TRUE)
-      if(class(jps_sub_new) == "try-error"){
+      if(inherits(jps_sub_new, "try-error")){
         jps_sub_new <- try(reorder_jps(jps_sub, func = max), silent = TRUE)
       }
-      if(class(jps_sub_new) == "try-error"){
+      if(inherits(jps_sub_new, "try-error")){
         warning("Cannnot find correct order of stops, defaulting to file order")
       } else {
         jps_sub <- jps_sub_new
@@ -444,7 +446,7 @@ expand_stop_times2 <- function(i, jps, trips) {
 }
 
 #' reorder_jps
-#' CHange the order of JPS_sub as the file order is wrong
+#' Change the order of JPS_sub as the file order is wrong
 #' @param jps_sub jps_sub from expand_stop_times2
 #' @noRd
 #'
@@ -556,7 +558,7 @@ make_stop_times <- function(jps, trips, ss) {
 #' @noRd
 clean_pass <- function(jps) {
   if ("pass" %in% jps$To.Activity) {
-    is_pass <- jps$To.Activity == "pass"
+    is_pass <- jps$To.Activity %in% "pass"
     pass_post <- c(FALSE, is_pass[seq(1, length(is_pass) - 1)])
     runtime1 <- as.integer(jps$RunTime)
     runtime2 <- c(0, runtime1[seq(1, length(runtime1) - 1)])

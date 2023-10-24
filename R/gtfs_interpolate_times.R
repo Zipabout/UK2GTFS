@@ -20,15 +20,15 @@
 gtfs_interpolate_times <- function(gtfs, ncores = 1){
   stop_times <- gtfs$stop_times
 
-  if(class(stop_times$arrival_time) != "Period"){
+  if(!inherits(stop_times$arrival_time, "Period")){
     stop_times$arrival_time <- lubridate::hms(stop_times$arrival_time)
   }
 
-  if(class(stop_times$departure_time) != "Period"){
+  if(!inherits(stop_times$departure_time, "Period")){
     stop_times$departure_time <- lubridate::hms(stop_times$departure_time)
   }
 
-  if(class(stop_times$stop_sequence) == "character"){
+  if(inherits(stop_times$stop_sequence, "character")){
     stop_times$stop_sequence <- as.integer(stop_times$stop_sequence)
   }
 
@@ -39,7 +39,7 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
     stop_times <- pbapply::pblapply(stop_times, stops_interpolate)
   } else {
     cl <- parallel::makeCluster(ncores)
-    parallel::clusterEvalQ(cl, library("UK2GTFS"))
+    parallel::clusterEvalQ(cl, {loadNamespace("UK2GTFS")})
     stop_times <- pbapply::pblapply(stop_times,
                                     stops_interpolate,
                                     cl = cl
@@ -59,11 +59,16 @@ gtfs_interpolate_times <- function(gtfs, ncores = 1){
 
 
 stops_interpolate <- function(x){
+  # skip if NAs in times, as can't handel
+  if(anyNA(x$arrival_time, x$departure_time)){
+    return(x)
+  }
+
   # Check for duplicates times
   if(any(duplicated(x$arrival_time))){
     # Check in correct order
     x <- x[order(x$stop_sequence),]
-    # Identify Break pooints
+    # Identify Break points
     x$arr_char <- as.character(x$arrival_time)
     x$dup_arr <- duplicated(x$arr_char)
     x$batch <- cumsum(!x$dup_arr)
@@ -88,17 +93,8 @@ stops_interpolate <- function(x){
           newtimes <- lubridate::as.duration(tstart) + interval
           newtimes <- lubridate::as.period(newtimes)
 
-
           # Convert day:hours:min:sec to hours:min:sec
-          for(j in seq_along(newtimes)){
-            sub <- newtimes[j]
-            if(sub >= lubridate::hm("24:00")){
-              ndys <- lubridate::hours(lubridate::day(sub) * 24)
-              sub <- sub - lubridate::days(1)
-              sub <- sub + ndys
-              newtimes[j] <- sub
-            }
-          }
+          newtimes <- period_days_to_hours(newtimes)
 
           x$arrival_time[x$batch == btch] <- newtimes
         }
@@ -112,16 +108,29 @@ stops_interpolate <- function(x){
   x$batch <- NULL
   x$arr_char <- NULL
 
-  # Needed becuase rbindlist doesn't work with periods for some reason
+  # Needed because rbindlist doesn't work with periods for some reason
   arrival_time <- try(period2gtfs(x$arrival_time), silent = TRUE)
-  if("try-error" %in% class(arrival_time)){
+  if(inherits(arrival_time, "try-error")){
     stop("conversion of times failed for tripID: ",unique(x$trip_id))
   }
   x$arrival_time <- arrival_time
   departure_time <- try(period2gtfs(x$departure_time), silent = TRUE)
-  if("try-error" %in% class(departure_time)){
+  if(inherits(departure_time, "try-error")){
     stop("conversion of times failed for tripID: ",unique(x$trip_id))
   }
   x$departure_time <- departure_time
   return(x)
+}
+
+
+period_days_to_hours <- function(x){
+  xday <- lubridate::day(x)
+  xhour <- lubridate::hour(x)
+  xmin <- lubridate::minute(x)
+  xsec <- lubridate::second(x)
+
+  y <- lubridate::period(hours = xhour + (xday * 24),
+                         minutes = xmin,
+                         seconds = xsec)
+  return(y)
 }

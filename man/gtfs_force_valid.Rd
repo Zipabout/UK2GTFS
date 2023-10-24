@@ -2,7 +2,7 @@
 % Please edit documentation in R/gtfs_validate.R
 \name{gtfs_force_valid}
 \alias{gtfs_force_valid}
-\title{Force a GTFS to be valid bu removing problems}
+\title{Force a GTFS to be valid by removing problems}
 \usage{
 gtfs_force_valid(gtfs)
 }
@@ -10,5 +10,15 @@ gtfs_force_valid(gtfs)
 \item{gtfs}{gtfs object}
 }
 \description{
-Force a GTFS to be valid bu removing problems
+Force a GTFS to be valid by removing problems
+}
+\details{
+Actions performed
+1. Remove stops with missing location
+2. Remove routes that don't exist in agency
+3. Remove trips that don't exist in routes
+4. Remove stop_times(calls) that don't exist in trips
+5. Remove stop_times(calls) that don't exist in stops
+6. Remove Calendar that have service_id that doesn't exist in trips
+7. Remove Calendar_dates that have service_id that doesn't exist in trips
 }
