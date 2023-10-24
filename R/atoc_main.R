@@ -111,9 +111,10 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
 
   trips <- dplyr::left_join(trips, routes, by = c("ATOC Code" = "ATOC Code", "route_long_name" = "route_long_name", "Train Status" = "Train Status"))
 
+ # 110 is used for Rail Replacement Bus Services
   train_status <- data.frame(
     train_status = c("B", "F", "P", "S", "T", "1", "2", "3", "4", "5"),
-    route_type = c(3, NA, 2, 4, NA, 2, NA, NA, 4, 3),
+    route_type = c(3, NA, 2, 4, NA, 2, NA, NA, 4, 110),
     stringsAsFactors = FALSE
   )
 

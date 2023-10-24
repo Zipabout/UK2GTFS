@@ -31,8 +31,8 @@ gtfs_split_ids <- function(gtfs, trip_ids) {
   calendar_true <- calendar[calendar$service_id %in% trips_true$service_id, ]
   calendar_false <- calendar[calendar$service_id %in% trips_false$service_id, ]
 
-  calendar_dates_true <- calendar_dates[calendar_dates$service_id %in% trips_true$service_id, ]
-  calendar_dates_false <- calendar_dates[calendar_dates$service_id %in% trips_false$service_id, ]
+  calendar_dates_true <- calendar_dates[calendar_dates$service_id %in% trips_true$service_id, ] # nolint
+  calendar_dates_false <- calendar_dates[calendar_dates$service_id %in% trips_false$service_id, ] # nolint
 
   stops_true <- stops[stops$stop_id %in% stop_times_true$stop_id, ]
   stops_false <- stops[stops$stop_id %in% stop_times_false$stop_id, ]
@@ -40,11 +40,11 @@ gtfs_split_ids <- function(gtfs, trip_ids) {
   agency_true <- agency[agency$agency_id %in% routes_true$agency_id, ]
   agency_false <- agency[agency$agency_id %in% routes_false$agency_id, ]
 
-  gtfs_true <- list(agency_true, stops_true, routes_true, trips_true, stop_times_true, calendar_true, calendar_dates_true)
-  gtfs_false <- list(agency_false, stops_false, routes_false, trips_false, stop_times_false, calendar_false, calendar_dates_false)
+  gtfs_true <- list(agency_true, stops_true, routes_true, trips_true, stop_times_true, calendar_true, calendar_dates_true) # nolint
+  gtfs_false <- list(agency_false, stops_false, routes_false, trips_false, stop_times_false, calendar_false, calendar_dates_false) # nolint
 
-  names(gtfs_true) <- c("agency", "stops", "routes", "trips", "stop_times", "calendar", "calendar_dates")
-  names(gtfs_false) <- c("agency", "stops", "routes", "trips", "stop_times", "calendar", "calendar_dates")
+  names(gtfs_true) <- c("agency", "stops", "routes", "trips", "stop_times", "calendar", "calendar_dates") # nolint
+  names(gtfs_false) <- c("agency", "stops", "routes", "trips", "stop_times", "calendar", "calendar_dates") # nolint
 
   result <- list(gtfs_true, gtfs_false)
   names(result) <- c("true", "false")
@@ -63,6 +63,7 @@ gtfs_split_ids <- function(gtfs, trip_ids) {
 #'   detects the fastest segment of the journey. A common cause of errors is
 #'   that a stop is in the wrong location so a bus can appear to teleport
 #'   across the country in seconds.
+
 #' @export
 
 gtfs_fast_trips <- function(gtfs, maxspeed = 83, routes = TRUE) {
@@ -73,9 +74,9 @@ gtfs_fast_trips <- function(gtfs, maxspeed = 83, routes = TRUE) {
   }
 
   trips <- gtfs$stop_times
-  #times$stop_sequence <- as.integer(times$stop_sequence)
+  #times$stop_sequence <- as.integer(times$stop_sequence) # nolint
   trips <- dplyr::left_join(trips, gtfs$stops, by = "stop_id")
-  trips$distance <- geodist::geodist(as.matrix(trips[,c("stop_lon","stop_lat")]), sequential = TRUE, pad = TRUE)
+  trips$distance <- geodist::geodist(as.matrix(trips[,c("stop_lon","stop_lat")]), sequential = TRUE, pad = TRUE) # nolint
   trips$distance[trips$stop_sequence == 1] <- NA
   trips$time <- dplyr::if_else(is.na(trips$arrival_time), trips$departure_time, trips$arrival_time)
   if(inherits(trips$time, "character")){
@@ -89,13 +90,14 @@ gtfs_fast_trips <- function(gtfs, maxspeed = 83, routes = TRUE) {
   }
 
   trips$speed <- trips$distance / trips$time2
+
   trips$speed[trips$speed == Inf] <- NA
 
   times <- dplyr::group_by(trips, trip_id)
   times <- dplyr::summarise(times,
                             max_speed = max(speed, na.rm = TRUE)
   )
-  times <- times[times$max_speed > maxspeed,]
+  times <- times[times$max_speed > maxspeed, ]
   return(times$trip_id)
 }
 
@@ -224,6 +226,46 @@ gtfs_clean <- function(gtfs, removeNonPublic =  FALSE) {
   gtfs$routes$agency_id[gtfs$routes$agency_id == ""] <- "MISSINGAGENCY"
   gtfs$agency$agency_name[gtfs$agency$agency_name == ""] <- "MISSINGAGENCY"
 
+  
+# gtfs_clean <- function(gtfs) {
+#   # 0 Remove routes with no valid agency_id
+#   gtfs$routes <- gtfs$routes[gtfs$routes$agency_id %in% unique(gtfs$agency$agency_id), ]  # nolint
+#   message(paste0(Sys.time(), " Removed routes with no valid agency_id")) # nolint
+
+#   # 1 Remove empty route_type
+#   #' gtfs$routes$route_type[is.na(gtfs$routes$route_type)] <- "-1" # nolint
+#   gtfs$routes <- gtfs$routes[!is.na(gtfs$routes$route_type), ]  # nolint
+#   message(paste0(Sys.time(), " Removed empty route_type")) # nolint
+
+#   # 2 Remove trips with no valid route_id
+#   gtfs$trips <- gtfs$trips[gtfs$trips$route_id %in% unique(gtfs$routes$route_id), ]  # nolint
+#   message(paste0(Sys.time(), " Removed trips with no valid route_id")) # nolint
+
+#   # 3 Remove stop times with no valid location or trip_id
+#   gtfs$stop_times <- gtfs$stop_times[gtfs$stop_times$stop_id %in% unique(gtfs$stops$stop_id), ]  # nolint
+#   gtfs$stop_times <- gtfs$stop_times[gtfs$stop_times$trip_id %in% unique(gtfs$trips$trip_id), ]  # nolint
+#   message(paste0(Sys.time(), " Removed stop times with no valid location or trip_id")) # nolint
+
+#   # 4 Remove stops that are never used
+#   gtfs$stops <- gtfs$stops[gtfs$stops$stop_id %in% unique(gtfs$stop_times$stop_id), ]  # nolint
+#   message(paste0(Sys.time(), " Removed stops that are never used")) # nolint
+
+#   # 5 Remove calendar items that are never used
+#   gtfs$calendar <- gtfs$calendar[gtfs$calendar$service_id %in% unique(gtfs$trips$service_id), ]  # nolint
+#   gtfs$calendar_dates <- gtfs$calendar_dates[gtfs$calendar_dates$service_id %in% unique(gtfs$trips$service_id), ]  # nolint
+#   message(paste0(Sys.time(), " Removed calendar items that are never used")) # nolint
+
+
+#   #' Replace "" agency_id with dummy name
+#   #' message(paste0(Sys.time(), " Replace empty agency_id with dummy name"))
+#   #' gtfs$agency$agency_id[is.na(gtfs$agency$agency_id)] <- "MISSINGAGENCY"
+#   #' gtfs$routes$agency_id[is.na(gtfs$routes$agency_id)] <- "MISSINGAGENCY"
+#   #' gtfs$agency$agency_id[is.na(gtfs$agency$agency_id)] <- "MISSINGAGENCY"
+#   #' gtfs$agency$agency_id[gtfs$agency$agency_id == ""] <- "MISSINGAGENCY"
+#   #' gtfs$routes$agency_id[gtfs$routes$agency_id == ""] <- "MISSINGAGENCY"
+#   #' gtfs$agency$agency_name[gtfs$agency$agency_name == ""] <- "MISSINGAGENCY"
+
+  
   # 4 remove calls, trips and routes that have an empty route_type (non public services)
   if (removeNonPublic)
   {
