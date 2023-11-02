@@ -31,8 +31,8 @@ gtfs_split_ids <- function(gtfs, trip_ids) {
   calendar_true <- calendar[calendar$service_id %in% trips_true$service_id, ]
   calendar_false <- calendar[calendar$service_id %in% trips_false$service_id, ]
 
-  calendar_dates_true <- calendar_dates[calendar_dates$service_id %in% trips_true$service_id, ] # nolint
-  calendar_dates_false <- calendar_dates[calendar_dates$service_id %in% trips_false$service_id, ] # nolint
+  calendar_dates_true <- calendar_dates[calendar_dates$service_id %in% trips_true$service_id, ]
+  calendar_dates_false <- calendar_dates[calendar_dates$service_id %in% trips_false$service_id, ]
 
   stops_true <- stops[stops$stop_id %in% stop_times_true$stop_id, ]
   stops_false <- stops[stops$stop_id %in% stop_times_false$stop_id, ]
@@ -40,11 +40,11 @@ gtfs_split_ids <- function(gtfs, trip_ids) {
   agency_true <- agency[agency$agency_id %in% routes_true$agency_id, ]
   agency_false <- agency[agency$agency_id %in% routes_false$agency_id, ]
 
-  gtfs_true <- list(agency_true, stops_true, routes_true, trips_true, stop_times_true, calendar_true, calendar_dates_true) # nolint
-  gtfs_false <- list(agency_false, stops_false, routes_false, trips_false, stop_times_false, calendar_false, calendar_dates_false) # nolint
+  gtfs_true <- list(agency_true, stops_true, routes_true, trips_true, stop_times_true, calendar_true, calendar_dates_true)
+  gtfs_false <- list(agency_false, stops_false, routes_false, trips_false, stop_times_false, calendar_false, calendar_dates_false)
 
-  names(gtfs_true) <- c("agency", "stops", "routes", "trips", "stop_times", "calendar", "calendar_dates") # nolint
-  names(gtfs_false) <- c("agency", "stops", "routes", "trips", "stop_times", "calendar", "calendar_dates") # nolint
+  names(gtfs_true) <- c("agency", "stops", "routes", "trips", "stop_times", "calendar", "calendar_dates")
+  names(gtfs_false) <- c("agency", "stops", "routes", "trips", "stop_times", "calendar", "calendar_dates")
 
   result <- list(gtfs_true, gtfs_false)
   names(result) <- c("true", "false")
@@ -63,7 +63,6 @@ gtfs_split_ids <- function(gtfs, trip_ids) {
 #'   detects the fastest segment of the journey. A common cause of errors is
 #'   that a stop is in the wrong location so a bus can appear to teleport
 #'   across the country in seconds.
-
 #' @export
 
 gtfs_fast_trips <- function(gtfs, maxspeed = 83, routes = TRUE) {
@@ -74,9 +73,9 @@ gtfs_fast_trips <- function(gtfs, maxspeed = 83, routes = TRUE) {
   }
 
   trips <- gtfs$stop_times
-  #times$stop_sequence <- as.integer(times$stop_sequence) # nolint
+  #times$stop_sequence <- as.integer(times$stop_sequence)
   trips <- dplyr::left_join(trips, gtfs$stops, by = "stop_id")
-  trips$distance <- geodist::geodist(as.matrix(trips[,c("stop_lon","stop_lat")]), sequential = TRUE, pad = TRUE) # nolint
+  trips$distance <- geodist::geodist(as.matrix(trips[,c("stop_lon","stop_lat")]), sequential = TRUE, pad = TRUE)
   trips$distance[trips$stop_sequence == 1] <- NA
   trips$time <- dplyr::if_else(is.na(trips$arrival_time), trips$departure_time, trips$arrival_time)
   if(inherits(trips$time, "character")){
@@ -90,14 +89,13 @@ gtfs_fast_trips <- function(gtfs, maxspeed = 83, routes = TRUE) {
   }
 
   trips$speed <- trips$distance / trips$time2
-
   trips$speed[trips$speed == Inf] <- NA
 
   times <- dplyr::group_by(trips, trip_id)
   times <- dplyr::summarise(times,
                             max_speed = max(speed, na.rm = TRUE)
   )
-  times <- times[times$max_speed > maxspeed, ]
+  times <- times[times$max_speed > maxspeed,]
   return(times$trip_id)
 }
 
