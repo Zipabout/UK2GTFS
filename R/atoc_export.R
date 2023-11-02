@@ -333,9 +333,8 @@ longnames <- function(routes, stop_times, stops) {
     dplyr::rename(stops[, c("stop_id", "stop_name")], stop_name_b = stop_name),
     by = c("stop_id_b" = "stop_id"))
 
-  stop_times_sub$route_long_name <- paste0("From ",
-                                           stop_times_sub$stop_name_a,
-                                           " to ",
+  stop_times_sub$route_long_name <- paste0(stop_times_sub$stop_name_a,
+                                           " - ",
                                            stop_times_sub$stop_name_b)
 
   stop_times_sub$route_long_name <- gsub(" Rail Station", "" , stop_times_sub$route_long_name)
