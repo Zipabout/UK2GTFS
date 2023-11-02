@@ -136,9 +136,12 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   # Fix Times
   stop_times <- afterMidnight(stop_times)
 
+  # Add trip_headsign to trips.txt
+  trips$trip_headsign <- trips$service_id
+
   # Ditch unneeded columns
   routes <- routes[, c("route_id", "agency_id", "route_short_name", "route_long_name", "route_type")]
-  trips <- trips[, c("trip_id", "route_id", "service_id", "trip_headsign" = "service_id")]
+  trips <- trips[, c("trip_id", "route_id", "service_id")]
   stop_times <- stop_times[, c("trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence", "pickup_type", "drop_off_type")]
   calendar <- calendar[, c("service_id", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "start_date", "end_date")]
 
