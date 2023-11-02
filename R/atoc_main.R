@@ -96,6 +96,9 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   trips <- calendar[, c("service_id", "trip_id", "rowID", "ATOC Code", "Train Status")]
   trips <- longnames(routes = trips, stop_times = stop_times, stops = stops)
 
+  # Add trip_headsign to trips.txt
+  trips$trip_headsign <- substr(trips$service_id, 1, 6)
+
   ### SECTION 4: ###############################################################################
   # make the routes.txt
   # a route is all the trips with a common start and end
@@ -135,9 +138,6 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
 
   # Fix Times
   stop_times <- afterMidnight(stop_times)
-
-  # Add trip_headsign to trips.txt
-  trips$trip_headsign <- trips$service_id
 
   # Ditch unneeded columns
   routes <- routes[, c("route_id", "agency_id", "route_short_name", "route_long_name", "route_type")]
