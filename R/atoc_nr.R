@@ -37,7 +37,8 @@ nr2gtfs <- function(path_in,
                       ncores = 1,
                       locations = "tiplocs",
                       agency = "atoc_agency",
-                      shapes = FALSE) {
+                      shapes = FALSE,
+                      full_import = FALSE) {
 
   if(inherits(locations,"character")){
     if(locations == "tiplocs"){
@@ -74,7 +75,9 @@ nr2gtfs <- function(path_in,
   # Read In each File
   mca <- importMCA(
       file = path_in,
-      silent = silent, ncores = 1
+      silent = silent,
+      ncores = 1,
+      full_import = full_import
   )
 
 
