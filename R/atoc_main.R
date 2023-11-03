@@ -60,7 +60,9 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   calendar_dates <- res[[2]]
   # rm(res)
 
-  calendar$trip_id <- 1:nrow(calendar) # not sure why this was here, but used in duplicate.stop_times
+  # Make trip_id meaningful - a unique schedule is identifed as UID/STP/StartDate
+  calendar$trip_id <- paste0(calendar$UID, "_", calendar$STP, "_", as.character(calendar$start_date))
+  # calendar$trip_id <- 1:nrow(calendar) # not sure why this was here, but used in duplicate.stop_times
   # calendar$service_id = 1:nrow(calendar) # For this purpose the serive and the trip are always the same
 
   # clean calednars
