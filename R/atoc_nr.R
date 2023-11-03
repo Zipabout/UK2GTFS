@@ -99,6 +99,10 @@ nr2gtfs <- function(path_in,
     stops <- utils::read.csv(locations, stringsAsFactors = FALSE)
   }
 
+  # Clean station names and change TIPLOC to ATCO code
+  stops$stop_id <- paste0("9100", stop_id)
+  stops$stop_name <- gsub(" Rail Station", "", stops$stop_name)
+
   # Construct the GTFS
   stop_times <- mca[["stop_times"]]
   schedule <- mca[["schedule"]]

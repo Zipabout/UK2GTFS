@@ -337,7 +337,7 @@ longnames <- function(routes, stop_times, stops) {
                                            " - ",
                                            stop_times_sub$stop_name_b)
 
-  stop_times_sub$route_long_name <- gsub(" Rail Station", "" , stop_times_sub$route_long_name)
+  stop_times_sub$route_long_name <- gsub(" Rail Station", "", stop_times_sub$route_long_name)
 
   stop_times_sub <- stop_times_sub[!duplicated(stop_times_sub$schedule), ]
   stop_times_sub <- stop_times_sub[, c("schedule", "route_long_name")]
