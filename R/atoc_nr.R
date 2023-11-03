@@ -95,14 +95,14 @@ nr2gtfs <- function(path_in,
     )
     stops$stop_lat <- round(stops$stop_lat, 5)
     stops$stop_lon <- round(stops$stop_lon, 5)
+    # Clean station names and change TIPLOC to ATCO code
+    stops$stop_id <- paste0("9100", stops$stop_id)
+    stops$stop_name <- gsub(" Rail Station", "", stops$stop_name)
   } else {
     stops <- utils::read.csv(locations, stringsAsFactors = FALSE)
   }
 
-  # Clean station names and change TIPLOC to ATCO code
-  stops$stop_id <- paste0("9100", stop_id)
-  stops$stop_name <- gsub(" Rail Station", "", stops$stop_name)
-
+  
   # Construct the GTFS
   stop_times <- mca[["stop_times"]]
   schedule <- mca[["schedule"]]
