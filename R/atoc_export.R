@@ -334,7 +334,7 @@ longnames <- function(routes, stop_times, stops) {
     by = c("stop_id_b" = "stop_id"))
 
   # Add service_id as route_short_name
-  stop_times_sub$route_short_name <- stop_times_sub$service_id
+  stop_times_sub$route_short_name <- routes$service_id
 
   # Add as route_long_name
   stop_times_sub$route_long_name <- paste0(stop_times_sub$stop_name_a,
