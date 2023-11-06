@@ -89,11 +89,13 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
     message(paste0(Sys.time(), " Duplicating necessary stop times"))
   }
 
-
   stop_times <- duplicate.stop_times_alt(calendar = calendar, stop_times = stop_times, ncores = 1)
 
   ### SECTION 5: ###############################################################################
   # make the trips.txt file by matching the calendar to the stop_times
+  if (!silent) {
+    message(paste0(Sys.time(), " Building trips.txt"))
+  }
 
   trips <- calendar[, c("service_id", "trip_id", "rowID", "ATOC Code", "Train Status")]
   trips <- longnames(routes = trips, stop_times = stop_times, stops = stops)
