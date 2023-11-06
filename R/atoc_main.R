@@ -97,9 +97,8 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
 
   trips <- calendar[, c("service_id", "trip_id", "rowID", "ATOC Code", "Train Status")]
   trips <- longnames(routes = trips, stop_times = stop_times, stops = stops)
-
-  # Add trip_headsign to trips.txt
-  trips$trip_headsign <- substr(trips$service_id, 1, 6)
+  # Add service_id as route_short_name to trips.txt
+  trips$route_short_name <- substr(trips$service_id, 1, 6)
 
   ### SECTION 4: ###############################################################################
   # make the routes.txt
@@ -114,7 +113,7 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   routes <- dplyr::summarise(routes)
   routes$route_id <- 1:nrow(routes)
 
-  trips <- dplyr::left_join(trips, routes, by = c("ATOC Code" = "ATOC Code", "route_long_name" = "route_long_name", "Train Status" = "Train Status"))
+  trips <- dplyr::left_join(trips, routes, by = c("ATOC Code" = "ATOC Code", "route_short_name" = "route_short_name", "route_long_name" = "route_long_name", "Train Status" = "Train Status"))
 
  # 110 is used for Rail Replacement Bus Services
   train_status <- data.frame(
@@ -127,11 +126,11 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   routes <- dplyr::left_join(routes, train_status, by = c("Train Status" = "train_status"))
   rm(train_status)
 
-  routes <- routes[, c("route_id", "route_type", "ATOC Code", "route_long_name")]
-  names(routes) <- c("route_id", "route_type", "agency_id", "route_long_name")
+  routes <- routes[, c("route_id", "route_type", "ATOC Code", "route_short_name", "route_long_name")]
+  names(routes) <- c("route_id", "route_type", "agency_id", "route_short_name", "route_long_name")
 
-  # IDs are not meaningful, just leave out
-  routes$route_short_name <- "" # was: routes$route_id
+  # This is now set as the service_id above
+  # routes$route_short_name <- "" # was: routes$route_id
 
   routes$route_type[routes$agency_id == "LT"] <- 1 # London Underground is Metro
 
