@@ -97,8 +97,7 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
 
   trips <- calendar[, c("service_id", "trip_id", "rowID", "ATOC Code", "Train Status")]
   trips <- longnames(routes = trips, stop_times = stop_times, stops = stops)
-  trips$route_short_name <- trips$service_id
-
+  
   ### SECTION 4: ###############################################################################
   # make the routes.txt
   # a route is all the trips with a common start and end
@@ -108,7 +107,7 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   }
 
   routes <- trips
-  routes <- dplyr::group_by(routes, `ATOC Code`, route_long_name, `Train Status`)
+  routes <- dplyr::group_by(routes, `ATOC Code`, route_short_name, route_long_name, `Train Status`)
   routes <- dplyr::summarise(routes)
   routes$route_id <- 1:nrow(routes)
 

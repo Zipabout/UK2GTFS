@@ -333,17 +333,21 @@ longnames <- function(routes, stop_times, stops) {
     dplyr::rename(stops[, c("stop_id", "stop_name")], stop_name_b = stop_name),
     by = c("stop_id_b" = "stop_id"))
 
+  # Add service_id as route_short_name
+  stop_times_sub$route_short_name <- stop_times_sub$service_id
+
+  # Add as route_long_name
   stop_times_sub$route_long_name <- paste0(stop_times_sub$stop_name_a,
                                            " - ",
                                            stop_times_sub$stop_name_b)
-
   stop_times_sub$route_long_name <- gsub(" Rail Station", "", stop_times_sub$route_long_name)
 
-  # Add destination for use as trip_headsign
+  # Add destination as trip_headsign
   stop_times_sub$trip_headsign <- stop_times_sub$stop_name_b
+  stop_times_sub$trip_headsign <- gsub(" Rail Station", "", stop_times_sub$trip_headsign)
 
   stop_times_sub <- stop_times_sub[!duplicated(stop_times_sub$schedule), ]
-  stop_times_sub <- stop_times_sub[, c("schedule", "route_long_name", "trip_headsign")]
+  stop_times_sub <- stop_times_sub[, c("schedule", "route_short_name", "route_long_name", "trip_headsign")]
 
   routes <- dplyr::left_join(routes, stop_times_sub,
                              by = c("rowID" = "schedule"))
