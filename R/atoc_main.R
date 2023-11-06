@@ -97,8 +97,7 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
 
   trips <- calendar[, c("service_id", "trip_id", "rowID", "ATOC Code", "Train Status")]
   trips <- longnames(routes = trips, stop_times = stop_times, stops = stops)
-  # Add service_id as route_short_name to trips.txt
-  trips$route_short_name <- substr(trips$service_id, 1, 6)
+  trips$route_short_name <- trips$service_id
 
   ### SECTION 4: ###############################################################################
   # make the routes.txt
