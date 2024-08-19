@@ -34,7 +34,7 @@ station2stops <- function(station, TI) {
   jnd$CRS <- ifelse(is.na(jnd$`CRS Code.y`), jnd$`CRS Code.x`,
     jnd$`CRS Code.y`
   )
-  jnd$name <- ifelse(is.na(jnd$`TPS Description`), jnd$`Station Name`,
+  jnd$name <- ifelse(is.na(jnd$`TPS Description`), gsub(" Rail Station", "", jnd$`Station Name`),
     jnd$`TPS Description`
   )
 
