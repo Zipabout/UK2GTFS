@@ -93,6 +93,9 @@ nr2gtfs <- function(path_in,
       "stop_id", "stop_code", "stop_name",
       "stop_lat", "stop_lon"
     )
+    # Remove 'Rail Station' from stop names
+    stops$stop_name <- gsub(" Rail Station", "", stops$stop_name)
+
     stops$stop_lat <- round(stops$stop_lat, 5)
     stops$stop_lon <- round(stops$stop_lon, 5)
   } else {
