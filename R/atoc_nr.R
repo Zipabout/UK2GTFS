@@ -2,7 +2,7 @@
 #'
 #' Convert ATOC CIF files from Network Rail to GTFS
 #'
-#' @param path_in Character, path to Network Rail ATOC file e.g."C:/input/toc-full.CIF.gz"
+#' @param paths_in Character vector, paths to Network Rail ATOC files e.g. c("C:/input/toc-full.CIF.gz", "C:/input/toc-update-mon.CIF.gz")
 #' @param silent Logical, should progress messages be surpressed (default TRUE)
 #' @param ncores Numeric, When parallel processing how many cores to use
 #'   (default 1)
@@ -32,13 +32,13 @@
 #'
 #' @export
 
-nr2gtfs <- function(path_in,
-                      silent = TRUE,
-                      ncores = 1,
-                      locations = "tiplocs",
-                      agency = "atoc_agency",
-                      shapes = FALSE,
-                      full_import = FALSE) {
+nr2gtfs <- function(paths_in,
+                    silent = TRUE,
+                    ncores = 1,
+                    locations = "tiplocs",
+                    agency = "atoc_agency",
+                    shapes = FALSE,
+                    full_import = FALSE) {
 
   if(inherits(locations,"character")){
     if(locations == "tiplocs"){
@@ -55,8 +55,7 @@ nr2gtfs <- function(path_in,
   }
 
   # checkmate
-  checkmate::assert_character(path_in, len = 1)
-  checkmate::assert_file_exists(path_in)
+  checkmate::assert_character(paths_in)
   checkmate::assert_logical(silent)
   checkmate::assert_numeric(ncores, lower = 1)
   checkmate::assert_logical(shapes)
@@ -67,19 +66,47 @@ nr2gtfs <- function(path_in,
       " This will take some time, make sure you use 'ncores' to enable multi-core processing"
     ))
   }
-  # Is input a zip or a folder
-  if (!grepl(".gz", path_in)) {
-    stop("path_in is not a .gz file")
-  }
 
-  # Read In each File
-  mca <- importMCA(
+  # Initialize empty data frames for combined results
+  combined_stop_times <- data.frame()
+  combined_schedule <- data.frame()
+
+  # Process each file
+  for (path_in in paths_in) {
+    # Is input a zip or a folder
+    if (!grepl(".gz", path_in)) {
+      stop("path_in is not a .gz file")
+    }
+
+    checkmate::assert_file_exists(path_in)
+
+    if (!silent) {
+      message(paste0(Sys.time(), " Processing file: ", path_in))
+    }
+
+    # Read In each File
+    mca <- importMCA(
       file = path_in,
       silent = silent,
       ncores = 1,
       full_import = full_import
-  )
+    )
 
+    if (!silent) {
+      message(paste0(Sys.time(), " Processed file: ", path_in))
+    }
+
+    # Combine results
+    combined_stop_times <- rbind(combined_stop_times, mca$stop_times)
+    combined_schedule <- rbind(combined_schedule, mca$schedule)
+  }
+
+  # Process updates/deletes and remove duplicates
+  if (!silent) {
+    message(paste0(Sys.time(), " Processing Revision and Deletions in combined files"))
+  }
+  combined_stop_times <- process_updates(combined_stop_times)
+  combined_schedule <- process_updates(combined_schedule)
 
   # Get the Station Locations
   if ("sf" %in% class(locations)) {
@@ -103,13 +130,7 @@ nr2gtfs <- function(path_in,
   }
 
   # Construct the GTFS
-  stop_times <- mca[["stop_times"]]
-  schedule <- mca[["schedule"]]
-  rm(mca)
-  gc()
-  # rm(alf, flf, mca, msn)
-
-  stop_times <- stop_times[, c(
+  stop_times <- combined_stop_times[, c(
     "Arrival Time",
     "Departure Time",
     "Location", "stop_sequence",
@@ -127,11 +148,10 @@ nr2gtfs <- function(path_in,
   timetables <- schedule2routes(
     stop_times = stop_times,
     stops = stops,
-    schedule = schedule,
+    schedule = combined_schedule,
     silent = silent,
     ncores = ncores
   )
-  rm(schedule)
 
   # TODO: check for stop_times that are not valid stops
 
@@ -144,4 +164,47 @@ nr2gtfs <- function(path_in,
   }
 
   return(timetables)
+}
+
+# Helper function to process updates/deletes and remove duplicates
+process_updates <- function(df) {
+  # Sort by UID, start date, STP Indicator, and then by the order in the original file
+  df <- df[order(df$`Train UID`, df$`Date Runs From`, df$`STP Indicator`, df$rowID), ]
+
+  # Create a unique identifier for each schedule
+  df$schedule_id <- paste(df$`Train UID`, df$`Date Runs From`, df$`STP Indicator`)
+
+  # Initialize result dataframe
+  result <- data.frame()
+
+  # Process records
+  for (id in unique(df$schedule_id)) {
+    subset <- df[df$schedule_id == id,]
+    current_record <- NULL
+
+    for (i in 1:nrow(subset)) {
+      record <- subset[i, ]
+
+      if (record$`Transaction Type` == "N") {
+        current_record <- record
+      } else if (record$`Transaction Type` == "R") {
+        if (!is.null(current_record)) {
+          current_record <- record
+        }
+      } else if (record$`Transaction Type` == "D") {
+        current_record <- NULL
+      }
+    }
+
+    # After processing all transactions for this schedule_id,
+    # add the final state to the result (if it exists)
+    if (!is.null(current_record)) {
+      result <- rbind(result, current_record)
+    }
+  }
+
+  # Remove temporary schedule_id column and Transaction Type
+  result$schedule_id <- NULL
+
+  return(result)
 }

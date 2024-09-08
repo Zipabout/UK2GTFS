@@ -325,6 +325,10 @@ importMCA <- function(file,
   BS$`Record Identity` <- NULL
   BS <- strip_whitespace(BS)
 
+  # Handle potentially missing data for R and D records
+  BS$`Date Runs To` <- ifelse(BS$`Transaction Type` %in% c("R", "D") & BS$`Date Runs To` == "", NA, BS$`Date Runs To`)
+  BS$`Days Run` <- ifelse(BS$`Transaction Type` %in% c("R", "D") & BS$`Days Run` == "", NA, BS$`Days Run`)
+
   # clean data
   BS$`Date Runs From` <- as.Date(BS$`Date Runs From`, format = "%y%m%d")
   BS$`Date Runs To` <- as.Date(BS$`Date Runs To`, format = "%y%m%d")
