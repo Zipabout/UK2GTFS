@@ -186,7 +186,7 @@ process_updates <- function(schedule_df, stop_times_df) {
   result_stop_times <- data.frame()
 
   for (id in unique(schedule_df$schedule_id)) {
-    subset <- schedule_df[schedule_df$schedule_id == id,]
+    subset <- schedule_df[schedule_df$schedule_id == id, ]
     current_record <- NULL
     current_stop_times <- NULL
 
