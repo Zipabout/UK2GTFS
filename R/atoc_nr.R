@@ -70,6 +70,7 @@ nr2gtfs <- function(paths_in,
   # Initialize empty data frames for combined results
   combined_stop_times <- data.frame()
   combined_schedule <- data.frame()
+  current_rowid <- 0
 
   # Process each file
   for (path_in in paths_in) {
@@ -89,7 +90,8 @@ nr2gtfs <- function(paths_in,
       file = path_in,
       silent = silent,
       ncores = 1,
-      full_import = full_import
+      full_import = full_import,
+      start_rowID = current_rowid
     )
 
     if (!silent) {
@@ -99,18 +101,21 @@ nr2gtfs <- function(paths_in,
     # Combine results
     combined_stop_times <- rbind(combined_stop_times, mca$stop_times)
     combined_schedule <- rbind(combined_schedule, mca$schedule)
+
+    current_rowid <- mca$last_rowID
   }
 
   # Process updates/deletes and remove duplicates
   if (!silent) {
     message(paste0(Sys.time(), " Processing Revision and Deletions in combined files"))
   }
-  combined_stop_times <- process_updates(combined_stop_times)
-  combined_schedule <- process_updates(combined_schedule)
+  processed_data <- process_updates(combined_schedule, combined_stop_times)
+  combined_schedule <- processed_data$schedule
+  combined_stop_times <- processed_data$stop_times
   if (!silent) {
     message(paste0(Sys.time(), " Processed Revision and Deletions in combined files"))
   }
-  
+
   # Get the Station Locations
   if ("sf" %in% class(locations)) {
     stops <- cbind(locations, sf::st_coordinates(locations))
@@ -170,49 +175,46 @@ nr2gtfs <- function(paths_in,
 }
 
 # Helper function to process updates/deletes and remove duplicates
-process_updates <- function(df) {
-
-  message(class(df))
-  message(sapply(df, class))
-  message(names(df))
-
-  # Sort by UID, start date, STP Indicator, and then by the order in the original file
-  df <- df[order(df$`Train UID`, df$`Date Runs From`, df$`STP indicator`, df$rowID), ]
+process_updates <- function(schedule_df, stop_times_df) {
+  # Sort schedules
+  schedule_df <- schedule_df[order(schedule_df$`Train UID`, schedule_df$`Date Runs From`, schedule_df$`STP indicator`, schedule_df$rowID), ]
 
   # Create a unique identifier for each schedule
-  df$schedule_id <- paste(df$`Train UID`, df$`Date Runs From`, df$`STP indicator`)
+  schedule_df$schedule_id <- paste(schedule_df$`Train UID`, schedule_df$`Date Runs From`, schedule_df$`STP indicator`)
 
-  # Initialize result dataframe
-  result <- data.frame()
+  result_schedule <- data.frame()
+  result_stop_times <- data.frame()
 
-  # Process records
-  for (id in unique(df$schedule_id)) {
-    subset <- df[df$schedule_id == id,]
+  for (id in unique(schedule_df$schedule_id)) {
+    subset <- schedule_df[schedule_df$schedule_id == id,]
     current_record <- NULL
+    current_stop_times <- NULL
 
     for (i in 1:nrow(subset)) {
       record <- subset[i, ]
 
       if (record$`Transaction Type` == "N") {
         current_record <- record
+        current_stop_times <- stop_times_df[stop_times_df$schedule == record$rowID, ]
       } else if (record$`Transaction Type` == "R") {
         if (!is.null(current_record)) {
           current_record <- record
+          current_stop_times <- stop_times_df[stop_times_df$schedule == record$rowID, ]
         }
       } else if (record$`Transaction Type` == "D") {
         current_record <- NULL
+        current_stop_times <- NULL
       }
     }
 
-    # After processing all transactions for this schedule_id,
-    # add the final state to the result (if it exists)
     if (!is.null(current_record)) {
-      result <- rbind(result, current_record)
+      result_schedule <- rbind(result_schedule, current_record)
+      result_stop_times <- rbind(result_stop_times, current_stop_times)
     }
   }
 
-  # Remove temporary schedule_id column and Transaction Type
-  result$schedule_id <- NULL
+  # Remove temporary columns
+  result_schedule$schedule_id <- NULL
 
-  return(result)
+  return(list(schedule = result_schedule, stop_times = result_stop_times))
 }

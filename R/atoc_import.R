@@ -282,7 +282,8 @@ importMCA <- function(file,
                       silent = TRUE,
                       ncores = 1,
                       full_import = FALSE,
-                      working_timetable = FALSE) {
+                      working_timetable = FALSE,
+                      start_rowID = 0) {
 
   # see https://wiki.openraildata.com/index.php/CIF_File_Format
   if (!silent) {
@@ -297,6 +298,14 @@ importMCA <- function(file,
   # break out each part of the file
   # Header Record
   # Not Needed
+
+  # Calculate offsets for each type
+  bs_offset <- start_rowID
+  bx_offset <- bs_offset + length(types[types == "BS"])
+  lo_offset <- bx_offset + length(types[types == "BX"])
+  li_offset <- lo_offset + length(types[types == "LO"])
+  lt_offset <- li_offset + length(types[types == "LI"])
+  zz_offset <- lt_offset + length(types[types == "LT"])
 
   # Basic Schedule
   if (!silent) {
@@ -342,7 +351,7 @@ importMCA <- function(file,
   BS$Speed <- as.integer(BS$Speed)
 
   # Add the rowid
-  BS$rowID <- seq(from = 1, to = length(types))[types == "BS"]
+  BS$rowID <- seq(from = bs_offset + 1, to = bs_offset + length(types[types == "BS"]))
 
   # Basic Schedule Extra Details
   if (!silent) {
@@ -364,7 +373,7 @@ importMCA <- function(file,
   # clean data
 
   # Add the rowid
-  BX$rowID <- seq(from = 1, to = length(types))[types == "BX"]
+  BX$rowID <- seq(from = bx_offset + 1, to = bx_offset + length(types[types == "BX"]))
 
   # Origin Station
   if (!silent) {
@@ -397,7 +406,7 @@ importMCA <- function(file,
   LO <- LO[, c("Location", "Departure Time")]
 
   # Add the rowid
-  LO$rowID <- seq(from = 1, to = length(types))[types == "LO"]
+  LO$rowID <- seq(from = lo_offset + 1, to = lo_offset + length(types[types == "LO"]))
 
   # Intermediate Station
   if (!silent) {
@@ -447,7 +456,7 @@ importMCA <- function(file,
   LI <- strip_whitespace(LI)
 
   # Add the rowid
-  LI$rowID <- seq(from = 1, to = length(types))[types == "LI"]
+  LI$rowID <- seq(from = li_offset + 1, to = li_offset + length(types[types == "LI"]))
 
   LI <- LI[LI$Activity != "Other",]
   # Check for errors in the times
@@ -505,10 +514,17 @@ importMCA <- function(file,
   LT <- LT[, c("Location", "Arrival Time", "Activity")]
 
   # Add the rowid
-  LT$rowID <- seq(from = 1, to = length(types))[types == "LT"]
+  LT$rowID <- seq(from = lt_offset + 1, to = lt_offset + length(types[types == "LT"]))
 
   # TIPLOC Insert
   if (full_import) {
+    # Calculate offsets for each type
+    cr_offset <- zz_offset + length(types[types == "ZZ"])
+    ti_offset <- cr_offset + length(types[types == "CR"])
+    ta_offset <- ti_offset + length(types[types == "TI"])
+    td_offset <- ta_offset + length(types[types == "TA"])
+    aa_offset <- td_offset + length(types[types == "TD"])
+
     # Changes En Route
     if (!silent) {
       message(paste0(Sys.time(), " importing Changes En Route"))
@@ -536,7 +552,8 @@ importMCA <- function(file,
     CR <- strip_whitespace(CR)
 
     # Add the rowid
-    CR$rowID <- seq(from = 1, to = length(types))[types == "CR"]
+    CR$rowID <- seq(from = cr_offset + 1, to = cr_offset + length(types[types == "CR"]))
+
 
     if (!silent) {
       message(paste0(Sys.time(), " importing TIPLOC Insert"))
@@ -557,7 +574,7 @@ importMCA <- function(file,
     TI <- strip_whitespace(TI)
 
     # Add the rowid
-    TI$rowID <- seq(from = 1, to = length(types))[types == "TI"]
+    TI$rowID <- seq(from = ti_offset + 1, to = ti_offset + length(types[types == "TI"]))
 
     # TIPLOC Amend
     if (!silent) {
@@ -579,7 +596,7 @@ importMCA <- function(file,
     TA <- strip_whitespace(TA)
 
     # Add the rowid
-    TA$rowID <- seq(from = 1, to = length(types))[types == "TA"]
+    TA$rowID <- seq(from = ta_offset + 1, to = ta_offset + length(types[types == "TA"]))
 
     # TIPLOC Delete
     if (!silent) {
@@ -597,7 +614,7 @@ importMCA <- function(file,
     TD <- strip_whitespace(TD)
 
     # Add the rowid
-    TD$rowID <- seq(from = 1, to = length(types))[types == "TD"]
+    TD$rowID <- seq(from = td_offset + 1, to = td_offset + length(types[types == "TD"]))
   }
 
 
@@ -637,7 +654,7 @@ importMCA <- function(file,
     AA$`Assoc Location Suffix` <- as.integer(AA$`Assoc Location Suffix`)
 
     # Add the rowid
-    AA$rowID <- seq(from = 1, to = length(types))[types == "AA"]
+    AA$rowID <- seq(from = aa_offset + 1, to = aa_offset + length(types[types == "AA"]))
   }
 
   # Trailer Record
@@ -655,7 +672,7 @@ importMCA <- function(file,
   ZZ <- strip_whitespace(ZZ)
 
   # Add the rowid
-  ZZ$rowID <- seq(from = 1, to = length(types))[types == "ZZ"]
+  ZZ$rowID <- seq(from = zz_offset + 1, to = zz_offset + length(types[types == "ZZ"]))
 
   # Prep the main files
   if (!silent) {
@@ -681,6 +698,11 @@ importMCA <- function(file,
     results <- list(stop_times, schedule)
     names(results) <- c("stop_times", "schedule")
   }
+
+  # Return the last used rowID along with the results
+  last_rowID <- if(full_import) aa_offset + length(types[types == "AA"]) else zz_offset + length(types[types == "ZZ"])
+
+  results$last_rowID <- last_rowID
 
   return(results)
 }
