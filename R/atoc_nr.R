@@ -172,10 +172,10 @@ nr2gtfs <- function(paths_in,
 # Helper function to process updates/deletes and remove duplicates
 process_updates <- function(df) {
   # Sort by UID, start date, STP Indicator, and then by the order in the original file
-  df <- df[order(df$`Train UID`, df$`Date Runs From`, df$`STP Indicator`, df$rowID), ]
+  df <- df[order(df$`Train UID`, df$`Date Runs From`, df$`STP indicator`, df$rowID), ]
 
   # Create a unique identifier for each schedule
-  df$schedule_id <- paste(df$`Train UID`, df$`Date Runs From`, df$`STP Indicator`)
+  df$schedule_id <- paste(df$`Train UID`, df$`Date Runs From`, df$`STP indicator`)
 
   # Initialize result dataframe
   result <- data.frame()
