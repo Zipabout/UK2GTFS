@@ -107,7 +107,10 @@ nr2gtfs <- function(paths_in,
   }
   combined_stop_times <- process_updates(combined_stop_times)
   combined_schedule <- process_updates(combined_schedule)
-
+  if (!silent) {
+    message(paste0(Sys.time(), " Processed Revision and Deletions in combined files"))
+  }
+  
   # Get the Station Locations
   if ("sf" %in% class(locations)) {
     stops <- cbind(locations, sf::st_coordinates(locations))
