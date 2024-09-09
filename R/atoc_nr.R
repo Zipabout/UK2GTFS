@@ -171,6 +171,11 @@ nr2gtfs <- function(paths_in,
 
 # Helper function to process updates/deletes and remove duplicates
 process_updates <- function(df) {
+
+  message(class(df))
+  message(sapply(df, class))
+  message(names(df))
+
   # Sort by UID, start date, STP Indicator, and then by the order in the original file
   df <- df[order(df$`Train UID`, df$`Date Runs From`, df$`STP indicator`, df$rowID), ]
 
