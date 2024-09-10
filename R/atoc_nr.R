@@ -165,7 +165,7 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
   stop_times_df <- data.table::as.data.table(stop_times_df)
 
   # Add schedule_id to the main dataframe once
-  schedule_df[, schedule_id := paste(`Train UID`, `Date Runs From`, `STP indicator`, sep = "_")]
+  schedule_df <- schedule_df[, c(.SD, list(schedule_id = paste(`Train UID`, `Date Runs From`, `STP indicator`, sep = "_")))]
 
   for (update_path in update_paths) {
     if (!silent) {
@@ -187,7 +187,8 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
     gc()
 
     # Add schedule_id to update data
-    update_schedule[, schedule_id := paste(`Train UID`, `Date Runs From`, `STP indicator`, sep = "_")]
+    update_schedule <- update_schedule[, c(.SD, list(schedule_id = paste(`Train UID`, `Date Runs From`, `STP indicator`, sep = "_")))]
+
 
     # Process each schedule in the update file
     for (i in 1:nrow(update_schedule)) {
@@ -225,7 +226,6 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
         # Delete schedule
         schedule_df <- schedule_df[schedule_id != current_schedule$schedule_id]
         stop_times_df <- stop_times_df[!schedule %in% schedule_df[schedule_id == current_schedule$schedule_id, rowID]]
-
       }
     }
 
@@ -236,7 +236,7 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
   }
 
   # Remove temporary schedule_id column
-  schedule_df[, schedule_id := NULL]
+  schedule_df <- schedule_df[, !("schedule_id"), with = FALSE]
 
   # Convert back to data.frame
   schedule_df <- as.data.frame(schedule_df)
