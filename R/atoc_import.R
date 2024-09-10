@@ -301,11 +301,6 @@ importMCA <- function(file,
 
   # Calculate offsets for each type
   bs_offset <- start_rowID
-  bx_offset <- bs_offset + length(types[types == "BS"])
-  lo_offset <- bx_offset + length(types[types == "BX"])
-  li_offset <- lo_offset + length(types[types == "LO"])
-  lt_offset <- li_offset + length(types[types == "LI"])
-  zz_offset <- lt_offset + length(types[types == "LT"])
 
   # Basic Schedule
   if (!silent) {
@@ -373,7 +368,7 @@ importMCA <- function(file,
   # clean data
 
   # Add the rowid
-  BX <- assign_rowid(BX, bx_offset, "BX")
+  BX <- assign_rowid(BX, 0, "BX")
 
   # Origin Station
   if (!silent) {
@@ -406,7 +401,7 @@ importMCA <- function(file,
   LO <- LO[, c("Location", "Departure Time")]
 
   # Add the rowid
-  LO <- assign_rowid(LO, lo_offset, "LO")
+  LO <- assign_rowid(LO, 0, "LO")
 
   # Intermediate Station
   if (!silent) {
@@ -456,7 +451,7 @@ importMCA <- function(file,
   LI <- strip_whitespace(LI)
 
   # Add the rowid
-  LI <- assign_rowid(LI, li_offset, "LI")
+  LI <- assign_rowid(LI, 0, "LI")
 
   LI <- LI[LI$Activity != "Other", ]
   # Check for errors in the times
@@ -514,17 +509,10 @@ importMCA <- function(file,
   LT <- LT[, c("Location", "Arrival Time", "Activity")]
 
   # Add the rowid
-  LT <- assign_rowid(LT, lt_offset, "LT")
+  LT <- assign_rowid(LT, 0, "LT")
 
   # TIPLOC Insert
   if (full_import) {
-    # Calculate offsets for each type
-    cr_offset <- zz_offset + length(types[types == "ZZ"])
-    ti_offset <- cr_offset + length(types[types == "CR"])
-    ta_offset <- ti_offset + length(types[types == "TI"])
-    td_offset <- ta_offset + length(types[types == "TA"])
-    aa_offset <- td_offset + length(types[types == "TD"])
-
     # Changes En Route
     if (!silent) {
       message(paste0(Sys.time(), " importing Changes En Route"))
@@ -552,7 +540,7 @@ importMCA <- function(file,
     CR <- strip_whitespace(CR)
 
     # Add the rowid
-    CR <- assign_rowid(CR, cr_offset, "CR")
+    CR <- assign_rowid(CR, 0, "CR")
 
 
     if (!silent) {
@@ -574,7 +562,7 @@ importMCA <- function(file,
     TI <- strip_whitespace(TI)
 
     # Add the rowid
-    TI <- assign_rowid(TI, ti_offset, "TI")
+    TI <- assign_rowid(TI, 0, "TI")
 
     # TIPLOC Amend
     if (!silent) {
@@ -596,7 +584,7 @@ importMCA <- function(file,
     TA <- strip_whitespace(TA)
 
     # Add the rowid
-    TA <- assign_rowid(TA, ta_offset, "TA")
+    TA <- assign_rowid(TA, 0, "TA")
 
     # TIPLOC Delete
     if (!silent) {
@@ -614,7 +602,7 @@ importMCA <- function(file,
     TD <- strip_whitespace(TD)
 
     # Add the rowid
-    TD <- assign_rowid(TD, td_offset, "TD")
+    TD <- assign_rowid(TD, 0, "TD")
   }
 
 
@@ -654,7 +642,7 @@ importMCA <- function(file,
     AA$`Assoc Location Suffix` <- as.integer(AA$`Assoc Location Suffix`)
 
     # Add the rowid
-    AA <- assign_rowid(AA, aa_offset, "AA")
+    AA <- assign_rowid(AA, 0, "AA")
   }
 
   # Trailer Record
@@ -672,7 +660,7 @@ importMCA <- function(file,
   ZZ <- strip_whitespace(ZZ)
 
   # Add the rowid
-  ZZ <- assign_rowid(ZZ, zz_offset, "ZZ")
+  ZZ <- assign_rowid(ZZ, 0, "ZZ")
 
   # Prep the main files
   if (!silent) {
@@ -699,10 +687,8 @@ importMCA <- function(file,
     names(results) <- c("stop_times", "schedule")
   }
 
-  # Return the last used rowID along with the results
-  last_rowID <- if(full_import) aa_offset + length(types[types == "AA"]) else zz_offset + length(types[types == "ZZ"])
-
-  results$last_rowID <- last_rowID
+  # Return the last used rowID for BS along with the results
+  results$last_rowID <- max(BS$rowID)
 
   return(results)
 }
@@ -710,7 +696,11 @@ importMCA <- function(file,
 # Assign rowID values based on offset
 assign_rowid <- function(df, offset, type) {
   if (nrow(df) > 0) {
-    df$rowID <- seq(from = offset + 1, to = offset + nrow(df))
+    if (type == "BS") {
+      df$rowID <- seq(from = offset + 1, to = offset + nrow(df))
+    } else {
+      df$rowID <- seq_len(nrow(df))
+    }
   } else {
     message(paste("Warning: No rows found for type", type))
   }

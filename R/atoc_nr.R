@@ -2,8 +2,9 @@
 #'
 #' Convert ATOC CIF files from Network Rail to GTFS
 #'
-#' @param paths_in Character vector, paths to Network Rail ATOC files e.g. c("C:/input/toc-full.CIF.gz", "C:/input/toc-update-mon.CIF.gz")
-#' @param silent Logical, should progress messages be surpressed (default TRUE)
+#' @param full_path Character, path to the full Network Rail ATOC file
+#' @param update_paths Character vector, paths to Network Rail ATOC update files
+#' @param silent Logical, should progress messages be suppressed (default TRUE)
 #' @param ncores Numeric, When parallel processing how many cores to use
 #'   (default 1)
 #' @param locations where to get tiploc locations (see details)
@@ -32,7 +33,8 @@
 #'
 #' @export
 
-nr2gtfs <- function(paths_in,
+nr2gtfs <- function(full_path,
+                    update_paths = NULL,
                     silent = TRUE,
                     ncores = 1,
                     locations = "tiplocs",
@@ -55,7 +57,8 @@ nr2gtfs <- function(paths_in,
   }
 
   # checkmate
-  checkmate::assert_character(paths_in)
+  checkmate::assert_character(full_path)
+  checkmate::assert_character(update_paths, null.ok = TRUE)
   checkmate::assert_logical(silent)
   checkmate::assert_numeric(ncores, lower = 1)
   checkmate::assert_logical(shapes)
@@ -67,53 +70,33 @@ nr2gtfs <- function(paths_in,
     ))
   }
 
-  # Initialize empty data frames for combined results
-  combined_stop_times <- data.frame()
-  combined_schedule <- data.frame()
-  current_rowid <- 0
-
-  # Process each file
-  for (path_in in paths_in) {
-    # Is input a zip or a folder
-    if (!grepl(".gz", path_in)) {
-      stop("path_in is not a .gz file")
-    }
-
-    checkmate::assert_file_exists(path_in)
-
-    if (!silent) {
-      message(paste0(Sys.time(), " Processing file: ", path_in))
-    }
-
-    # Read In each File
-    mca <- importMCA(
-      file = path_in,
-      silent = silent,
-      ncores = 1,
-      full_import = full_import,
-      start_rowID = current_rowid
-    )
-
-    if (!silent) {
-      message(paste0(Sys.time(), " Processed file: ", path_in))
-    }
-
-    # Combine results
-    combined_stop_times <- rbind(combined_stop_times, mca$stop_times)
-    combined_schedule <- rbind(combined_schedule, mca$schedule)
-
-    current_rowid <- mca$last_rowID
+  # Process the full CIF file
+  if (!silent) {
+    message(paste0(Sys.time(), " Processing full CIF file: ", full_path))
   }
 
-  # Process updates/deletes and remove duplicates
-  if (!silent) {
-    message(paste0(Sys.time(), " Processing Revision and Deletions in combined files"))
-  }
-  processed_data <- process_updates_optimized(combined_schedule, combined_stop_times, silent)
-  combined_schedule <- processed_data$schedule
-  combined_stop_times <- processed_data$stop_times
-  if (!silent) {
-    message(paste0(Sys.time(), " Processed Revision and Deletions in combined files"))
+  mca <- importMCA(
+    file = full_path,
+    silent = silent,
+    ncores = 1,
+    full_import = full_import,
+    start_rowID = 0
+  )
+
+  combined_schedule <- mca$schedule
+  combined_stop_times <- mca$stop_times
+
+  # Process update files if provided
+  if (!is.null(update_paths) && length(update_paths) > 0) {
+    if (!silent) {
+      message(paste0(Sys.time(), " Processing CIF file updates"))
+    }
+    processed_data <- process_updates_incremental(combined_schedule, combined_stop_times, update_paths, silent)
+    combined_schedule <- processed_data$schedule
+    combined_stop_times <- processed_data$stop_times
+    if (!silent) {
+      message(paste0(Sys.time(), " Processed CIF file updates"))
+    }
   }
 
   # Get the Station Locations
@@ -174,97 +157,72 @@ nr2gtfs <- function(paths_in,
   return(timetables)
 }
 
-# Helper function to process updates/deletes and remove duplicates
-process_updates <- function(schedule_df, stop_times_df, silent = TRUE) {
-  # Sort schedules
-  if (!silent) {
-    message(paste0(Sys.time(), " Sorting schedules"))
-  }
-  schedule_df <- schedule_df[order(schedule_df$`Train UID`, schedule_df$`Date Runs From`, schedule_df$`STP indicator`, schedule_df$rowID), ]
-
-  # Create a unique identifier for each schedule
-  if (!silent) {
-    message(paste0(Sys.time(), " Creating unique identifiers for schedules"))
-  }
-  schedule_df$schedule_id <- paste(schedule_df$`Train UID`, schedule_df$`Date Runs From`, schedule_df$`STP indicator`)
-
-  result_schedule <- data.frame()
-  result_stop_times <- data.frame()
-
-  for (id in unique(schedule_df$schedule_id)) {
-    subset <- schedule_df[schedule_df$schedule_id == id, ]
-    current_record <- NULL
-    current_stop_times <- NULL
-
-    if (!silent) {
-      message(paste0(Sys.time(), " Processing schedule: ", id, nrow(subset)))
-    }
-    for (i in 1:nrow(subset)) {
-      record <- subset[i, ]
-
-      if (record$`Transaction Type` == "N") {
-        if (!silent) {
-          message(paste0(Sys.time(), " Processing New schedule: ", id))
-        }
-        current_record <- record
-        current_stop_times <- stop_times_df[stop_times_df$schedule == record$rowID, ]
-      } else if (record$`Transaction Type` == "R") {
-        if (!is.null(current_record)) {
-          if (!silent) {
-            message(paste0(Sys.time(), " Processing Revise schedule: ", id))
-          }
-          current_record <- record
-          current_stop_times <- stop_times_df[stop_times_df$schedule == record$rowID, ]
-        }
-      } else if (record$`Transaction Type` == "D") {
-        if (!silent) {
-          message(paste0(Sys.time(), " Processing Delete schedule: ", id))
-        }
-        current_record <- NULL
-        current_stop_times <- NULL
-      }
-    }
-
-    if (!silent) {
-      message(paste0(Sys.time(), " Processed schedule: ", id))
-    }
-    if (!is.null(current_record)) {
-      result_schedule <- rbind(result_schedule, current_record)
-      result_stop_times <- rbind(result_stop_times, current_stop_times)
-    }
-  }
-
-  # Remove temporary columns
-  result_schedule$schedule_id <- NULL
-
-  return(list(schedule = result_schedule, stop_times = result_stop_times))
-}
-
-process_updates_optimized <- function(schedule_df, stop_times_df, silent = TRUE) {
-  if (!silent) {
-    message(paste0(Sys.time(), " Processing schedules"))
-  }
-
-  # Create a unique identifier for each schedule
+process_updates_incremental <- function(schedule_df, stop_times_df, update_paths, silent = TRUE) {
+  # Add schedule_id to the main dataframe once
   schedule_df$schedule_id <- paste(schedule_df$`Train UID`, schedule_df$`Date Runs From`, schedule_df$`STP indicator`, sep = "_")
 
-  # Group by schedule_id and find the last entry for each group
-  latest_schedules <- do.call(rbind, lapply(split(schedule_df, schedule_df$schedule_id), function(group) {
-    group[which.max(group$rowID), ]
-  }))
+  for (update_path in update_paths) {
+    if (!silent) {
+      message(paste0(Sys.time(), " Processing update file: ", update_path))
+    }
 
-  # Filter out deleted schedules
-  active_schedules <- latest_schedules[latest_schedules$`Transaction Type` != "D", ]
+    # Import the update file
+    update_data <- importMCA(
+      file = update_path,
+      silent = silent,
+      ncores = 1,
+      full_import = FALSE,
+      start_rowID = max(schedule_df$rowID)
+    )
 
-  if (!silent) {
-    message(paste0(Sys.time(), " Processing stop times"))
+    update_schedule <- update_data$schedule
+    update_stop_times <- update_data$stop_times
+
+    # Add schedule_id to update data
+    update_schedule$schedule_id <- paste(update_schedule$`Train UID`, update_schedule$`Date Runs From`, update_schedule$`STP indicator`, sep = "_")
+
+    # Process each schedule in the update file
+    for (i in 1:nrow(update_schedule)) {
+      current_schedule <- update_schedule[i, ]
+
+      if (current_schedule$`Transaction Type` == "N") {
+        # New schedule: add to existing data
+        if (!silent) {
+          message(paste0(Sys.time(), " Processing New Schedule: ", current_schedule$schedule_id))
+        }
+        # Add schedule
+        schedule_df <- rbind(schedule_df, current_schedule)
+        stop_times_df <- rbind(
+          stop_times_df,
+          update_stop_times[update_stop_times$schedule == current_schedule$rowID, ]
+        )
+      } else if (current_schedule$`Transaction Type` == "R") {
+        # Revised schedule: remove existing and add new
+        if (!silent) {
+          message(paste0(Sys.time(), " Processing Revise Schedule: ", current_schedule$schedule_id))
+        }
+        # Delete schedule
+        schedule_df <- schedule_df[schedule_df$schedule_id != current_schedule$schedule_id, ]
+        stop_times_df <- stop_times_df[!(stop_times_df$schedule %in% schedule_df$rowID[schedule_df$schedule_id == current_schedule$schedule_id]), ]
+        # Add schedule
+        schedule_df <- rbind(schedule_df, current_schedule)
+        stop_times_df <- rbind(
+          stop_times_df,
+          update_stop_times[update_stop_times$schedule == current_schedule$rowID, ]
+        )
+      } else if (current_schedule$`Transaction Type` == "D") {
+        # Deleted schedule: remove existing
+        if (!silent) {
+          message(paste0(Sys.time(), " Processing Delete Schedule: ", current_schedule$schedule_id))
+        }
+        schedule_df <- schedule_df[schedule_df$schedule_id != current_schedule$schedule_id, ]
+        stop_times_df <- stop_times_df[!(stop_times_df$schedule %in% schedule_df$rowID[schedule_df$schedule_id == current_schedule$schedule_id]), ]
+      }
+    }
   }
 
-  # Join stop_times with active schedules
-  active_stop_times <- merge(stop_times_df, active_schedules[, "rowID", drop = FALSE], by.x = "schedule", by.y = "rowID")
+  # Remove temporary schedule_id column
+  schedule_df$schedule_id <- NULL
 
-  # Remove temporary columns
-  active_schedules$schedule_id <- NULL
-
-  return(list(schedule = active_schedules, stop_times = active_stop_times))
+  return(list(schedule = schedule_df, stop_times = stop_times_df))
 }
