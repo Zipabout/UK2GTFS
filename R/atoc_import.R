@@ -699,7 +699,7 @@ assign_rowid <- function(df, offset, type) {
     if (type == "BS") {
       df$rowID <- seq(from = offset + 1, to = offset + nrow(df))
     } else {
-      df$rowID <- seq_len(nrow(df))
+      df$rowID <- seq(from = 1, to = nrow(df))
     }
   } else {
     message(paste("Warning: No rows found for type", type))

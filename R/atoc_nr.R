@@ -219,6 +219,11 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
         stop_times_df <- stop_times_df[!(stop_times_df$schedule %in% schedule_df$rowID[schedule_df$schedule_id == current_schedule$schedule_id]), ]
       }
     }
+
+    if (!silent) {
+      message(paste0(Sys.time(), " Processed update file: ", update_path))
+    }
+
   }
 
   # Remove temporary schedule_id column
