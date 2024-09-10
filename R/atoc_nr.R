@@ -109,7 +109,7 @@ nr2gtfs <- function(paths_in,
   if (!silent) {
     message(paste0(Sys.time(), " Processing Revision and Deletions in combined files"))
   }
-  processed_data <- process_updates(combined_schedule, combined_stop_times)
+  processed_data <- process_updates(combined_schedule, combined_stop_times, silent)
   combined_schedule <- processed_data$schedule
   combined_stop_times <- processed_data$stop_times
   if (!silent) {
@@ -175,11 +175,17 @@ nr2gtfs <- function(paths_in,
 }
 
 # Helper function to process updates/deletes and remove duplicates
-process_updates <- function(schedule_df, stop_times_df) {
+process_updates <- function(schedule_df, stop_times_df, silent = TRUE) {
   # Sort schedules
+  if (!silent) {
+    message(paste0(Sys.time(), " Sorting schedules"))
+  }
   schedule_df <- schedule_df[order(schedule_df$`Train UID`, schedule_df$`Date Runs From`, schedule_df$`STP indicator`, schedule_df$rowID), ]
 
   # Create a unique identifier for each schedule
+  if (!silent) {
+    message(paste0(Sys.time(), " Creating unique identifiers for schedules"))
+  }
   schedule_df$schedule_id <- paste(schedule_df$`Train UID`, schedule_df$`Date Runs From`, schedule_df$`STP indicator`)
 
   result_schedule <- data.frame()
@@ -190,23 +196,38 @@ process_updates <- function(schedule_df, stop_times_df) {
     current_record <- NULL
     current_stop_times <- NULL
 
+    if (!silent) {
+      message(paste0(Sys.time(), " Processing schedule: ", id, nrow(subset)))
+    }
     for (i in 1:nrow(subset)) {
       record <- subset[i, ]
 
       if (record$`Transaction Type` == "N") {
+        if (!silent) {
+          message(paste0(Sys.time(), " Processing New schedule: ", id))
+        }
         current_record <- record
         current_stop_times <- stop_times_df[stop_times_df$schedule == record$rowID, ]
       } else if (record$`Transaction Type` == "R") {
         if (!is.null(current_record)) {
+          if (!silent) {
+            message(paste0(Sys.time(), " Processing Revise schedule: ", id))
+          }
           current_record <- record
           current_stop_times <- stop_times_df[stop_times_df$schedule == record$rowID, ]
         }
       } else if (record$`Transaction Type` == "D") {
+        if (!silent) {
+          message(paste0(Sys.time(), " Processing Delete schedule: ", id))
+        }
         current_record <- NULL
         current_stop_times <- NULL
       }
     }
 
+    if (!silent) {
+      message(paste0(Sys.time(), " Processed schedule: ", id))
+    }
     if (!is.null(current_record)) {
       result_schedule <- rbind(result_schedule, current_record)
       result_stop_times <- rbind(result_stop_times, current_stop_times)
