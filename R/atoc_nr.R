@@ -93,7 +93,7 @@ nr2gtfs <- function(full_path,
     if (!silent) {
       message(paste0(Sys.time(), " Processing CIF file updates"))
     }
-    processed_data <- process_updates_incremental(combined_schedule, combined_stop_times, update_paths, silent)
+    processed_data <- process_updates_incremental(combined_schedule, combined_stop_times, update_paths, silent, full_import)
     combined_schedule <- processed_data$schedule
     combined_stop_times <- processed_data$stop_times
     if (!silent) {
@@ -159,9 +159,13 @@ nr2gtfs <- function(full_path,
   return(timetables)
 }
 
-process_updates_incremental <- function(schedule_df, stop_times_df, update_paths, silent = TRUE) {
+process_updates_incremental <- function(schedule_df, stop_times_df, update_paths, silent = TRUE, full_import = FALSE) {
+  # Convert to data.table for efficient processing
+  schedule_df <- data.table::as.data.table(schedule_df)
+  stop_times_df <- data.table::as.data.table(stop_times_df)
+
   # Add schedule_id to the main dataframe once
-  schedule_df$schedule_id <- paste(schedule_df$`Train UID`, schedule_df$`Date Runs From`, schedule_df$`STP indicator`, sep = "_")
+  schedule_df[, schedule_id := paste(`Train UID`, `Date Runs From`, `STP indicator`, sep = "_")]
 
   for (update_path in update_paths) {
     if (!silent) {
@@ -173,21 +177,21 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
       file = update_path,
       silent = silent,
       ncores = 1,
-      full_import = FALSE,
+      full_import = full_import,
       start_rowID = max(schedule_df$rowID)
     )
 
-    update_schedule <- update_data$schedule
-    update_stop_times <- update_data$stop_times
+    update_schedule <- data.table::as.data.table(update_data$schedule)
+    update_stop_times <- data.table::as.data.table(update_data$stop_times)
     rm(update_data)
     gc()
 
     # Add schedule_id to update data
-    update_schedule$schedule_id <- paste(update_schedule$`Train UID`, update_schedule$`Date Runs From`, update_schedule$`STP indicator`, sep = "_")
+    update_schedule[, schedule_id := paste(`Train UID`, `Date Runs From`, `STP indicator`, sep = "_")]
 
     # Process each schedule in the update file
     for (i in 1:nrow(update_schedule)) {
-      current_schedule <- update_schedule[i, ]
+      current_schedule <- update_schedule[i]
 
       if (current_schedule$`Transaction Type` == "N") {
         # New schedule: add to existing data
@@ -195,32 +199,33 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
           message(paste0(Sys.time(), " Processing New Schedule: ", current_schedule$schedule_id))
         }
         # Add schedule
-        schedule_df <- rbind(schedule_df, current_schedule)
-        stop_times_df <- rbind(
-          stop_times_df,
-          update_stop_times[update_stop_times$schedule == current_schedule$rowID, ]
-        )
+        schedule_df <- data.table::rbindlist(list(schedule_df, current_schedule), use.names = TRUE, fill = TRUE)
+        new_stop_times <- update_stop_times[schedule == current_schedule$rowID]
+        stop_times_df <- data.table::rbindlist(list(stop_times_df, new_stop_times), use.names = TRUE, fill = TRUE)
+
       } else if (current_schedule$`Transaction Type` == "R") {
         # Revised schedule: remove existing and add new
         if (!silent) {
           message(paste0(Sys.time(), " Processing Revise Schedule: ", current_schedule$schedule_id))
         }
         # Delete schedule
-        schedule_df <- schedule_df[schedule_df$schedule_id != current_schedule$schedule_id, ]
-        stop_times_df <- stop_times_df[!(stop_times_df$schedule %in% schedule_df$rowID[schedule_df$schedule_id == current_schedule$schedule_id]), ]
+        schedule_df <- schedule_df[schedule_id != current_schedule$schedule_id]
+        stop_times_df <- stop_times_df[!schedule %in% schedule_df[schedule_id == current_schedule$schedule_id, rowID]]
+
         # Add schedule
-        schedule_df <- rbind(schedule_df, current_schedule)
-        stop_times_df <- rbind(
-          stop_times_df,
-          update_stop_times[update_stop_times$schedule == current_schedule$rowID, ]
-        )
+        schedule_df <- data.table::rbindlist(list(schedule_df, current_schedule), use.names = TRUE, fill = TRUE)
+        new_stop_times <- update_stop_times[schedule == current_schedule$rowID]
+        stop_times_df <- data.table::rbindlist(list(stop_times_df, new_stop_times), use.names = TRUE, fill = TRUE)
+
       } else if (current_schedule$`Transaction Type` == "D") {
         # Deleted schedule: remove existing
         if (!silent) {
           message(paste0(Sys.time(), " Processing Delete Schedule: ", current_schedule$schedule_id))
         }
-        schedule_df <- schedule_df[schedule_df$schedule_id != current_schedule$schedule_id, ]
-        stop_times_df <- stop_times_df[!(stop_times_df$schedule %in% schedule_df$rowID[schedule_df$schedule_id == current_schedule$schedule_id]), ]
+        # Delete schedule
+        schedule_df <- schedule_df[schedule_id != current_schedule$schedule_id]
+        stop_times_df <- stop_times_df[!schedule %in% schedule_df[schedule_id == current_schedule$schedule_id, rowID]]
+
       }
     }
 
@@ -231,7 +236,11 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
   }
 
   # Remove temporary schedule_id column
-  schedule_df$schedule_id <- NULL
+  schedule_df[, schedule_id := NULL]
+
+  # Convert back to data.frame
+  schedule_df <- as.data.frame(schedule_df)
+  stop_times_df <- as.data.frame(stop_times_df)
 
   return(list(schedule = schedule_df, stop_times = stop_times_df))
 }
