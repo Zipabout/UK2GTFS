@@ -246,27 +246,22 @@ process_updates_optimized <- function(schedule_df, stop_times_df, silent = TRUE)
   }
 
   # Create a unique identifier for each schedule
-  schedule_df <- schedule_df %>%
-    dplyr::mutate(schedule_id = paste(`Train UID`, `Date Runs From`, `STP indicator`, sep = "_"))
+  schedule_df$schedule_id <- paste(schedule_df$`Train UID`, schedule_df$`Date Runs From`, schedule_df$`STP indicator`, sep = "_")
 
   # Group by schedule_id and find the last entry for each group
-  latest_schedules <- schedule_df %>%
-    dplyr::group_by(schedule_id) %>%
-    dplyr::arrange(rowID) %>%
-    dplyr::slice_tail(n = 1) %>%
-    dplyr::ungroup()
+  latest_schedules <- do.call(rbind, lapply(split(schedule_df, schedule_df$schedule_id), function(group) {
+    group[which.max(group$rowID), ]
+  }))
 
   # Filter out deleted schedules
-  active_schedules <- latest_schedules %>%
-    dplyr::filter(`Transaction Type` != "D")
+  active_schedules <- latest_schedules[latest_schedules$`Transaction Type` != "D", ]
 
   if (!silent) {
     message(paste0(Sys.time(), " Processing stop times"))
   }
 
   # Join stop_times with active schedules
-  active_stop_times <- stop_times_df %>%
-    dplyr::inner_join(active_schedules %>% dplyr::select(rowID), by = c("schedule" = "rowID"))
+  active_stop_times <- merge(stop_times_df, active_schedules[, "rowID", drop = FALSE], by.x = "schedule", by.y = "rowID")
 
   # Remove temporary columns
   active_schedules$schedule_id <- NULL
