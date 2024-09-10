@@ -109,7 +109,7 @@ nr2gtfs <- function(paths_in,
   if (!silent) {
     message(paste0(Sys.time(), " Processing Revision and Deletions in combined files"))
   }
-  processed_data <- process_updates(combined_schedule, combined_stop_times, silent)
+  processed_data <- process_updates_optimized(combined_schedule, combined_stop_times, silent)
   combined_schedule <- processed_data$schedule
   combined_stop_times <- processed_data$stop_times
   if (!silent) {
@@ -238,4 +238,38 @@ process_updates <- function(schedule_df, stop_times_df, silent = TRUE) {
   result_schedule$schedule_id <- NULL
 
   return(list(schedule = result_schedule, stop_times = result_stop_times))
+}
+
+process_updates_optimized <- function(schedule_df, stop_times_df, silent = TRUE) {
+  if (!silent) {
+    message(paste0(Sys.time(), " Processing schedules"))
+  }
+
+  # Create a unique identifier for each schedule
+  schedule_df <- schedule_df %>%
+    dplyr::mutate(schedule_id = paste(`Train UID`, `Date Runs From`, `STP indicator`, sep = "_"))
+
+  # Group by schedule_id and find the last entry for each group
+  latest_schedules <- schedule_df %>%
+    dplyr::group_by(schedule_id) %>%
+    dplyr::arrange(rowID) %>%
+    dplyr::slice_tail(n = 1) %>%
+    dplyr::ungroup()
+
+  # Filter out deleted schedules
+  active_schedules <- latest_schedules %>%
+    dplyr::filter(`Transaction Type` != "D")
+
+  if (!silent) {
+    message(paste0(Sys.time(), " Processing stop times"))
+  }
+
+  # Join stop_times with active schedules
+  active_stop_times <- stop_times_df %>%
+    dplyr::inner_join(active_schedules %>% dplyr::select(rowID), by = c("schedule" = "rowID"))
+
+  # Remove temporary columns
+  active_schedules$schedule_id <- NULL
+
+  return(list(schedule = active_schedules, stop_times = active_stop_times))
 }
