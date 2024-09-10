@@ -1,4 +1,7 @@
 library(data.table)
+utils::globalVariables(c(":=", ".SD", ".I"))
+`:=` <- data.table::`:=`
+
 
 #' ATOC to GTFS (Network Rail Version)
 #'
@@ -162,12 +165,10 @@ nr2gtfs <- function(full_path,
 }
 
 process_updates_incremental <- function(schedule_df, stop_times_df, update_paths, silent = TRUE, full_import = FALSE) {
-  # Import data.table namespace
-  import("data.table")
 
   # Convert to data.table for efficient processing
-  schedule_df <- data.table::as.data.table(schedule_df)
-  stop_times_df <- data.table::as.data.table(stop_times_df)
+  setDT(schedule_df)
+  setDT(stop_times_df)
 
   # Add schedule_id to the main dataframe once
   schedule_df[, schedule_id := paste(`Train UID`, `Date Runs From`, `STP indicator`, sep = "_")]
@@ -186,8 +187,10 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
       start_rowID = max(schedule_df$rowID)
     )
 
-    update_schedule <- data.table::as.data.table(update_data$schedule)
-    update_stop_times <- data.table::as.data.table(update_data$stop_times)
+    setDT(update_data$schedule)
+    setDT(update_data$stop_times)
+    update_schedule <- update_data$schedule
+    update_stop_times <- update_data$stop_times
     rm(update_data)
     gc()
 
@@ -204,9 +207,9 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
           message(paste0(Sys.time(), " Processing New Schedule: ", current_schedule$schedule_id))
         }
         # Add schedule
-        schedule_df <- data.table::rbindlist(list(schedule_df, current_schedule), use.names = TRUE, fill = TRUE)
+        schedule_df <- rbindlist(list(schedule_df, current_schedule), use.names = TRUE, fill = TRUE)
         new_stop_times <- update_stop_times[schedule == current_schedule$rowID]
-        stop_times_df <- data.table::rbindlist(list(stop_times_df, new_stop_times), use.names = TRUE, fill = TRUE)
+        stop_times_df <- rbindlist(list(stop_times_df, new_stop_times), use.names = TRUE, fill = TRUE)
 
       } else if (current_schedule$`Transaction Type` == "R") {
         # Revised schedule: remove existing and add new
@@ -218,9 +221,9 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
         stop_times_df <- stop_times_df[!schedule %in% schedule_df[schedule_id == current_schedule$schedule_id, rowID]]
 
         # Add schedule
-        schedule_df <- data.table::rbindlist(list(schedule_df, current_schedule), use.names = TRUE, fill = TRUE)
+        schedule_df <- rbindlist(list(schedule_df, current_schedule), use.names = TRUE, fill = TRUE)
         new_stop_times <- update_stop_times[schedule == current_schedule$rowID]
-        stop_times_df <- data.table::rbindlist(list(stop_times_df, new_stop_times), use.names = TRUE, fill = TRUE)
+        stop_times_df <- rbindlist(list(stop_times_df, new_stop_times), use.names = TRUE, fill = TRUE)
 
       } else if (current_schedule$`Transaction Type` == "D") {
         # Deleted schedule: remove existing
@@ -243,8 +246,8 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
   schedule_df[, schedule_id := NULL]
 
   # Convert back to data.frame
-  schedule_df <- as.data.frame(schedule_df)
-  stop_times_df <- as.data.frame(stop_times_df)
+  setDF(schedule_df)
+  setDF(stop_times_df)
 
   return(list(schedule = schedule_df, stop_times = stop_times_df))
 }
