@@ -85,6 +85,8 @@ nr2gtfs <- function(full_path,
 
   combined_schedule <- mca$schedule
   combined_stop_times <- mca$stop_times
+  rm(mca)
+  gc()
 
   # Process update files if provided
   if (!is.null(update_paths) && length(update_paths) > 0) {
@@ -177,6 +179,8 @@ process_updates_incremental <- function(schedule_df, stop_times_df, update_paths
 
     update_schedule <- update_data$schedule
     update_stop_times <- update_data$stop_times
+    rm(update_data)
+    gc()
 
     # Add schedule_id to update data
     update_schedule$schedule_id <- paste(update_schedule$`Train UID`, update_schedule$`Date Runs From`, update_schedule$`STP indicator`, sep = "_")
