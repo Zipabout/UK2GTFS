@@ -10,7 +10,9 @@ Authors@R: c(
     )
 Maintainer: Malcolm Morgan <m.morgan1@leeds.ac.uk>
 Description: The UK uses a range of odd formats to store timetable data, this package converts them to the nice GTFS format.
-Depends: R (>= 3.5)
+Depends:
+    R (>= 3.5),
+    data.table,
 Language: EN-GB
 License: GPL-3
 URL: https://github.com/itsleeds/uk2gtfs, https://itsleeds.git.io/uk2gtfs/

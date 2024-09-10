@@ -1,5 +1,4 @@
 library(data.table)
-options(datatable.aware = TRUE)
 
 #' ATOC to GTFS (Network Rail Version)
 #'
