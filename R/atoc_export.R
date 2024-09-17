@@ -429,7 +429,7 @@ makeCalendar <- function(schedule, ncores = 1) {
   #res.calendar.split <- split(res.calendar, seq(1, nrow(res.calendar)))
   #performance - doing this split on 500k rows takes 60s - longer than the parallel execution below and consumes 3gb memory.
 
-  res.calendar.days <- res.calendar[, CHECKROWS_NAME_VECTOR, with = FALSE]
+  res.calendar.days <- res.calendar[, ..CHECKROWS_NAME_VECTOR]
   res.calendar.days <- data.table::transpose(res.calendar.days)
   #transpose on the same size runs in around 3s, but causes named dataframe with mixed datatypes to be coerced to unnamed vector of integer.
 
