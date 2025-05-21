@@ -155,10 +155,7 @@ splitDates <- function(cal) {
     by = c( "start_date", "end_date" )
   )
 
-  # First check for overlay schedules for this date range
-  if (any(cal$STP == "O")) {
-    match <- "O"
-  } else if ("P" %in% cal$STP) {
+  if ("P" %in% cal$STP) {
     match <- "P"
   } else {
     match <- cal$STP[cal$STP != "C"]
@@ -170,32 +167,20 @@ splitDates <- function(cal) {
     if (is.na(cal.new$UID[j])) {
       st_tmp <- cal.new$start_date[j]
       ed_tmp <- cal.new$end_date[j]
-      
-      # First check for overlay schedules for this specific date range
-      overlay_exists <- any(cal$STP == "O" & cal$start_date <= st_tmp & cal$end_date >= ed_tmp)
-      if (overlay_exists) {
-        match_stp <- "O"
-      } else if ("P" %in% cal$STP) {
-        match_stp <- "P"
-      } else {
-        match_stp <- cal$STP[cal$STP != "C"]
-        match_stp <- match_stp[1]
-      }
-      
-      new.UID <- cal$UID[cal$STP == match_stp & cal$start_date <= st_tmp &
+      new.UID <- cal$UID[cal$STP == match & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.Days <- cal$Days[cal$STP == match_stp & cal$start_date <= st_tmp &
+      new.Days <- cal$Days[cal$STP == match & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.roWID <- cal$rowID[cal$STP == match_stp & cal$start_date <= st_tmp &
+      new.roWID <- cal$rowID[cal$STP == match & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.ATOC <- cal$`ATOC Code`[cal$STP == match_stp & cal$start_date <= st_tmp &
+      new.ATOC <- cal$`ATOC Code`[cal$STP == match & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.Retail <- cal$`Retail Train ID`[cal$STP == match_stp &
+      new.Retail <- cal$`Retail Train ID`[cal$STP == match &
         cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.head <- cal$Headcode[cal$STP == match_stp & cal$start_date <= st_tmp &
+      new.head <- cal$Headcode[cal$STP == match & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.Status <- cal$`Train Status`[cal$STP == match_stp &
+      new.Status <- cal$`Train Status`[cal$STP == match &
         cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
       if (length(new.UID) == 1) {
@@ -206,7 +191,7 @@ splitDates <- function(cal) {
         cal.new$`Retail Train ID`[j] <- new.Retail
         cal.new$`Train Status`[j] <- new.Status
         cal.new$Headcode[j] <- new.head
-        cal.new$STP[j] <- match_stp
+        cal.new$STP[j] <- match
       } else if (length(new.UID) > 1) {
         message("Going From")
         print(cal)
@@ -224,18 +209,20 @@ splitDates <- function(cal) {
   # remove duplicated rows
   cal.new <- cal.new[!duplicated(cal.new), ]
 
-  # modify end and start dates for all schedule types, not just P
+  # modify end and start dates
   for (j in seq(1, nrow(cal.new))) {
-    # check if end date need changing
-    if (j < nrow(cal.new)) {
-      if (cal.new$end_date[j] == cal.new$start_date[j + 1]) {
-        cal.new$end_date[j] <- (cal.new$end_date[j] - 1)
+    if (cal.new$STP[j] == "P") {
+      # check if end date need changing
+      if (j < nrow(cal.new)) {
+        if (cal.new$end_date[j] == cal.new$start_date[j + 1]) {
+          cal.new$end_date[j] <- (cal.new$end_date[j] - 1)
+        }
       }
-    }
-    # check if start date needs changing
-    if (j > 1) {
-      if (cal.new$start_date[j] == cal.new$end_date[j - 1]) {
-        cal.new$start_date[j] <- (cal.new$start_date[j] + 1)
+      # check if start date needs changing
+      if (j > 1) {
+        if (cal.new$start_date[j] == cal.new$end_date[j - 1]) {
+          cal.new$start_date[j] <- (cal.new$start_date[j] + 1)
+        }
       }
     }
   }
@@ -491,16 +478,8 @@ makeCalendar.inner <- function(calendar.sub) { # i, UIDs, calendar){
         calendar.sub[calendar.sub$STP != "P", ]
       ))
     } else {
-      # Check if there are any overlay schedules that need to be processed with permanent schedules
-      has_overlays <- sum(typ.all == "O") > 0
-      has_permanent <- sum(typ.all == "P") > 0
-      
-      # Process together if we have both overlays and permanent schedules
-      if (has_overlays && has_permanent) {
-        # Process all schedules together to handle the overlays properly
-        calendar.new <- splitDates(calendar.sub)
-        return(list(calendar.new, NA))
-      } else if (length(unique(calendar.sub$Days)) == 1 &
+      # check for identical day pattern
+      if (length(unique(calendar.sub$Days)) == 1 &
         sum(typ.all == "P") == 1) {
         calendar.new <- splitDates(calendar.sub)
         #calendar.new <- UK2GTFS:::splitDates(calendar.sub)
