@@ -492,8 +492,8 @@ makeCalendar.inner <- function(calendar.sub) { # i, UIDs, calendar){
       ))
     } else {
       # Check if there are any overlay schedules that need to be processed with permanent schedules
-      has_overlays <- any(typ.all == "O")
-      has_permanent <- any(typ.all == "P")
+      has_overlays <- sum(typ.all == "O") > 0
+      has_permanent <- sum(typ.all == "P") > 0
       
       # Process together if we have both overlays and permanent schedules
       if (has_overlays && has_permanent) {
