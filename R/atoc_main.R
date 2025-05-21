@@ -60,7 +60,9 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   calendar_dates <- res[[2]]
   # rm(res)
 
-  calendar$trip_id <- 1:nrow(calendar) # not sure why this was here, but used in duplicate.stop_times
+  # Make trip_id meaningful - a unique schedule is identifed as UID/STP/StartDate
+  calendar$trip_id <- paste0(calendar$UID, "_", calendar$STP, "_", as.character(calendar$start_date), "_", as.character(calendar$end_date))
+  # calendar$trip_id <- 1:nrow(calendar) # not sure why this was here, but used in duplicate.stop_times
   # calendar$service_id = 1:nrow(calendar) # For this purpose the serive and the trip are always the same
 
   # clean calednars
@@ -87,15 +89,17 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
     message(paste0(Sys.time(), " Duplicating necessary stop times"))
   }
 
-
   stop_times <- duplicate.stop_times_alt(calendar = calendar, stop_times = stop_times, ncores = 1)
 
   ### SECTION 5: ###############################################################################
   # make the trips.txt file by matching the calendar to the stop_times
+  if (!silent) {
+    message(paste0(Sys.time(), " Building trips.txt"))
+  }
 
   trips <- calendar[, c("service_id", "trip_id", "rowID", "ATOC Code", "Train Status")]
   trips <- longnames(routes = trips, stop_times = stop_times, stops = stops)
-
+  
   ### SECTION 4: ###############################################################################
   # make the routes.txt
   # a route is all the trips with a common start and end
@@ -105,11 +109,11 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   }
 
   routes <- trips
-  routes <- dplyr::group_by(routes, `ATOC Code`, route_long_name, `Train Status`)
+  routes <- dplyr::group_by(routes, `ATOC Code`, route_short_name, route_long_name, `Train Status`)
   routes <- dplyr::summarise(routes)
   routes$route_id <- 1:nrow(routes)
 
-  trips <- dplyr::left_join(trips, routes, by = c("ATOC Code" = "ATOC Code", "route_long_name" = "route_long_name", "Train Status" = "Train Status"))
+  trips <- dplyr::left_join(trips, routes, by = c("ATOC Code" = "ATOC Code", "route_short_name" = "route_short_name", "route_long_name" = "route_long_name", "Train Status" = "Train Status"))
 
  # 110 is used for Rail Replacement Bus Services
   train_status <- data.frame(
@@ -122,11 +126,11 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   routes <- dplyr::left_join(routes, train_status, by = c("Train Status" = "train_status"))
   rm(train_status)
 
-  routes <- routes[, c("route_id", "route_type", "ATOC Code", "route_long_name")]
-  names(routes) <- c("route_id", "route_type", "agency_id", "route_long_name")
+  routes <- routes[, c("route_id", "route_type", "ATOC Code", "route_short_name", "route_long_name")]
+  names(routes) <- c("route_id", "route_type", "agency_id", "route_short_name", "route_long_name")
 
-  # IDs are not meaningful, just leave out
-  routes$route_short_name <- "" # was: routes$route_id
+  # This is now set as the service_id above
+  # routes$route_short_name <- "" # was: routes$route_id
 
   routes$route_type[routes$agency_id == "LT"] <- 1 # London Underground is Metro
 
@@ -138,7 +142,7 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
 
   # Ditch unneeded columns
   routes <- routes[, c("route_id", "agency_id", "route_short_name", "route_long_name", "route_type")]
-  trips <- trips[, c("trip_id", "route_id", "service_id")]
+  trips <- trips[, c("trip_id", "route_id", "service_id", "trip_headsign")]
   stop_times <- stop_times[, c("trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence", "pickup_type", "drop_off_type")]
   calendar <- calendar[, c("service_id", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "start_date", "end_date")]
 

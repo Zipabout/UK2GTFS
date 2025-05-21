@@ -37,7 +37,8 @@ nr2gtfs <- function(path_in,
                       ncores = 1,
                       locations = "tiplocs",
                       agency = "atoc_agency",
-                      shapes = FALSE) {
+                      shapes = FALSE,
+                      full_import = FALSE) {
 
   if(inherits(locations,"character")){
     if(locations == "tiplocs"){
@@ -74,7 +75,9 @@ nr2gtfs <- function(path_in,
   # Read In each File
   mca <- importMCA(
       file = path_in,
-      silent = silent, ncores = 1
+      silent = silent,
+      ncores = 1,
+      full_import = full_import
   )
 
 
@@ -90,6 +93,9 @@ nr2gtfs <- function(path_in,
       "stop_id", "stop_code", "stop_name",
       "stop_lat", "stop_lon"
     )
+    # Remove 'Rail Station' from stop names
+    stops$stop_name <- gsub(" Rail Station", "", stops$stop_name)
+
     stops$stop_lat <- round(stops$stop_lat, 5)
     stops$stop_lon <- round(stops$stop_lon, 5)
   } else {

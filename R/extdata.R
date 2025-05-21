@@ -52,7 +52,7 @@ update_data <- function(){
 download_data <- function(tag_name, package_location, date){
 
   dir.create(file.path(tempdir(),"UK2GTFS_load"))
-  utils::download.file(paste0("https://github.com/ITSLeeds/UK2GTFS-data/releases/download/",
+  utils::download.file(paste0("https://github.com/Zipabout/UK2GTFS-data/releases/download/",
                        tag_name,"/all.zip"),
                 destfile = file.path(tempdir(),"UK2GTFS_load/all.zip"),
                 mode = "wb")
@@ -76,7 +76,7 @@ check_data <- function(default_tag = "v0.1.2"){
   # Try not to hammer the API
   Sys.sleep(5)
   # Check date on data repo
-  res = try(httr::GET("https://api.github.com/repos/ITSleeds/UK2GTFS-data/releases"),
+  res = try(httr::GET("https://api.github.com/repos/Zipabout/UK2GTFS-data/releases"),
             silent = TRUE)
   if(inherits(res, "try-error")){
     message("Unable to check for latest data")

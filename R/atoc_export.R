@@ -155,7 +155,10 @@ splitDates <- function(cal) {
     by = c( "start_date", "end_date" )
   )
 
-  if ("P" %in% cal$STP) {
+  # First check for overlay schedules for this date range
+  if (any(cal$STP == "O")) {
+    match <- "O"
+  } else if ("P" %in% cal$STP) {
     match <- "P"
   } else {
     match <- cal$STP[cal$STP != "C"]
@@ -167,20 +170,32 @@ splitDates <- function(cal) {
     if (is.na(cal.new$UID[j])) {
       st_tmp <- cal.new$start_date[j]
       ed_tmp <- cal.new$end_date[j]
-      new.UID <- cal$UID[cal$STP == match & cal$start_date <= st_tmp &
+      
+      # First check for overlay schedules for this specific date range
+      overlay_exists <- any(cal$STP == "O" & cal$start_date <= st_tmp & cal$end_date >= ed_tmp)
+      if (overlay_exists) {
+        match_stp <- "O"
+      } else if ("P" %in% cal$STP) {
+        match_stp <- "P"
+      } else {
+        match_stp <- cal$STP[cal$STP != "C"]
+        match_stp <- match_stp[1]
+      }
+      
+      new.UID <- cal$UID[cal$STP == match_stp & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.Days <- cal$Days[cal$STP == match & cal$start_date <= st_tmp &
+      new.Days <- cal$Days[cal$STP == match_stp & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.roWID <- cal$rowID[cal$STP == match & cal$start_date <= st_tmp &
+      new.roWID <- cal$rowID[cal$STP == match_stp & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.ATOC <- cal$`ATOC Code`[cal$STP == match & cal$start_date <= st_tmp &
+      new.ATOC <- cal$`ATOC Code`[cal$STP == match_stp & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.Retail <- cal$`Retail Train ID`[cal$STP == match &
+      new.Retail <- cal$`Retail Train ID`[cal$STP == match_stp &
         cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.head <- cal$Headcode[cal$STP == match & cal$start_date <= st_tmp &
+      new.head <- cal$Headcode[cal$STP == match_stp & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
-      new.Status <- cal$`Train Status`[cal$STP == match &
+      new.Status <- cal$`Train Status`[cal$STP == match_stp &
         cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
       if (length(new.UID) == 1) {
@@ -191,7 +206,7 @@ splitDates <- function(cal) {
         cal.new$`Retail Train ID`[j] <- new.Retail
         cal.new$`Train Status`[j] <- new.Status
         cal.new$Headcode[j] <- new.head
-        cal.new$STP[j] <- match
+        cal.new$STP[j] <- match_stp
       } else if (length(new.UID) > 1) {
         message("Going From")
         print(cal)
@@ -209,20 +224,18 @@ splitDates <- function(cal) {
   # remove duplicated rows
   cal.new <- cal.new[!duplicated(cal.new), ]
 
-  # modify end and start dates
+  # modify end and start dates for all schedule types, not just P
   for (j in seq(1, nrow(cal.new))) {
-    if (cal.new$STP[j] == "P") {
-      # check if end date need changing
-      if (j < nrow(cal.new)) {
-        if (cal.new$end_date[j] == cal.new$start_date[j + 1]) {
-          cal.new$end_date[j] <- (cal.new$end_date[j] - 1)
-        }
+    # check if end date need changing
+    if (j < nrow(cal.new)) {
+      if (cal.new$end_date[j] == cal.new$start_date[j + 1]) {
+        cal.new$end_date[j] <- (cal.new$end_date[j] - 1)
       }
-      # check if start date needs changing
-      if (j > 1) {
-        if (cal.new$start_date[j] == cal.new$end_date[j - 1]) {
-          cal.new$start_date[j] <- (cal.new$start_date[j] + 1)
-        }
+    }
+    # check if start date needs changing
+    if (j > 1) {
+      if (cal.new$start_date[j] == cal.new$end_date[j - 1]) {
+        cal.new$start_date[j] <- (cal.new$start_date[j] + 1)
       }
     }
   }
@@ -239,11 +252,11 @@ splitDates <- function(cal) {
   # Append UID to note the changes
   if (nrow(cal.new) > 0) {
     if (nrow(cal.new) < 27) {
-      cal.new$UID <- paste0(cal.new$UID, " ", letters[1:nrow(cal.new)])
+      cal.new$UID <- paste0(cal.new$UID, "-", letters[1:nrow(cal.new)])
     } else {
       # Cases where we need extra letters, gives upto 676 ids
       lett <- paste0(rep(letters, each = 26), rep(letters, times = 26))
-      cal.new$UID <- paste0(cal.new$UID, " ", lett[1:nrow(cal.new)])
+      cal.new$UID <- paste0(cal.new$UID, "-", lett[1:nrow(cal.new)])
     }
   } else {
     cal.new <- NA
@@ -333,15 +346,21 @@ longnames <- function(routes, stop_times, stops) {
     dplyr::rename(stops[, c("stop_id", "stop_name")], stop_name_b = stop_name),
     by = c("stop_id_b" = "stop_id"))
 
-  stop_times_sub$route_long_name <- paste0("From ",
-                                           stop_times_sub$stop_name_a,
-                                           " to ",
-                                           stop_times_sub$stop_name_b)
+  # Add service_id as route_short_name
+  stop_times_sub$route_short_name <- substr(routes$service_id, 1, 6)
 
-  stop_times_sub$route_long_name <- gsub(" Rail Station", "" , stop_times_sub$route_long_name)
+  # Add as route_long_name
+  stop_times_sub$route_long_name <- paste0(stop_times_sub$stop_name_a,
+                                           " - ",
+                                           stop_times_sub$stop_name_b)
+  stop_times_sub$route_long_name <- gsub(" Rail Station", "", stop_times_sub$route_long_name)
+
+  # Add destination as trip_headsign
+  stop_times_sub$trip_headsign <- stop_times_sub$stop_name_b
+  stop_times_sub$trip_headsign <- gsub(" Rail Station", "", stop_times_sub$trip_headsign)
 
   stop_times_sub <- stop_times_sub[!duplicated(stop_times_sub$schedule), ]
-  stop_times_sub <- stop_times_sub[, c("schedule", "route_long_name")]
+  stop_times_sub <- stop_times_sub[, c("schedule", "route_short_name", "route_long_name", "trip_headsign")]
 
   routes <- dplyr::left_join(routes, stop_times_sub,
                              by = c("rowID" = "schedule"))
