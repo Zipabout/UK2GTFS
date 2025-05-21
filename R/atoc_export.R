@@ -491,8 +491,16 @@ makeCalendar.inner <- function(calendar.sub) { # i, UIDs, calendar){
         calendar.sub[calendar.sub$STP != "P", ]
       ))
     } else {
-      # check for identical day pattern
-      if (length(unique(calendar.sub$Days)) == 1 &
+      # Check if there are any overlay schedules that need to be processed with permanent schedules
+      has_overlays <- any(typ.all == "O")
+      has_permanent <- any(typ.all == "P")
+      
+      # Process together if we have both overlays and permanent schedules
+      if (has_overlays && has_permanent) {
+        # Process all schedules together to handle the overlays properly
+        calendar.new <- splitDates(calendar.sub)
+        return(list(calendar.new, NA))
+      } else if (length(unique(calendar.sub$Days)) == 1 &
         sum(typ.all == "P") == 1) {
         calendar.new <- splitDates(calendar.sub)
         #calendar.new <- UK2GTFS:::splitDates(calendar.sub)
