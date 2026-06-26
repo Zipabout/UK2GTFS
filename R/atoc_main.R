@@ -98,8 +98,10 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
   }
 
   trips <- calendar[, c("service_id", "trip_id", "rowID", "ATOC Code", "Train Status")]
+  # Join Train Category back from schedule (calendar strips it; needed for EL/OL metro fix below)
+  trips <- dplyr::left_join(trips, schedule[, c("rowID", "Train Category")], by = "rowID")
   trips <- longnames(routes = trips, stop_times = stop_times, stops = stops)
-  
+
   ### SECTION 4: ###############################################################################
   # make the routes.txt
   # a route is all the trips with a common start and end
@@ -108,31 +110,44 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
     message(paste0(Sys.time(), " Building routes.txt"))
   }
 
+  # Apply route_type to trips BEFORE grouping so it survives dplyr::summarise.
+  # 110 = Rail Replacement Bus (extended GTFS); OTP routes type=110 as RAIL mode,
+  # so {mode: RAIL} queries automatically include replacement buses without returning
+  # regular (type=3) bus services.
+  #
+  # Status='B' = permanent scheduled bus (Category='BS') → type 3 (Bus)
+  # Status='5' = STP bus (Category='BR')                 → type 110 (Rail Replacement)
+  train_status <- data.frame(
+    train_status = c("B", "F", "P", "S", "T", "1", "2", "3", "4", "5"),
+    route_type   = c(  3, NA,  2,  4, NA,  2, NA, NA,  4, 110),
+    stringsAsFactors = FALSE
+  )
+  trips$`Train Status` <- as.character(trips$`Train Status`)
+  trips <- dplyr::left_join(trips, train_status, by = c("Train Status" = "train_status"))
+  rm(train_status)
+
+  # Metro fix: EL (Electric Metro) and OL (London Underground / Tyne & Wear Metro)
+  # should be route_type 1 (Subway/Metro), not 2 (Rail).
+  # This supersedes the previous agency_id == "LT" check which only caught London Underground.
+  trips$route_type[trips$`Train Category` %in% c("EL", "OL") & !is.na(trips$route_type) & trips$route_type == 2] <- 1
+
+  # Rail Replacement Bus fix: Category='BR' (Bus, Rail Replacement) should always be
+  # route_type 110, regardless of Train Status. Status='B' maps to 3 above, but any
+  # service explicitly Category='BR' in the CIF is a rail replacement bus.
+  # Status='5' Cat='BR' already gets 110 via the lookup; this catches Status='B' Cat='BR'
+  # (permanent-schedule replacements like long-running engineering works).
+  trips$route_type[trips$`Train Category` == "BR" & !is.na(trips$route_type)] <- 110
+
+  # Group by route_type (not Train Status) so the column survives summarise
   routes <- trips
-  routes <- dplyr::group_by(routes, `ATOC Code`, route_short_name, route_long_name, `Train Status`)
+  routes <- dplyr::group_by(routes, `ATOC Code`, route_short_name, route_long_name, route_type)
   routes <- dplyr::summarise(routes)
   routes$route_id <- 1:nrow(routes)
 
-  trips <- dplyr::left_join(trips, routes, by = c("ATOC Code" = "ATOC Code", "route_short_name" = "route_short_name", "route_long_name" = "route_long_name", "Train Status" = "Train Status"))
-
- # 110 is used for Rail Replacement Bus Services
-  train_status <- data.frame(
-    train_status = c("B", "F", "P", "S", "T", "1", "2", "3", "4", "5"),
-    route_type = c(3, NA, 2, 4, NA, 2, NA, NA, 4, 110),
-    stringsAsFactors = FALSE
-  )
-
-  routes$`Train Status` <- as.character(routes$`Train Status`)
-  routes <- dplyr::left_join(routes, train_status, by = c("Train Status" = "train_status"))
-  rm(train_status)
+  trips <- dplyr::left_join(trips, routes, by = c("ATOC Code", "route_short_name", "route_long_name", "route_type"))
 
   routes <- routes[, c("route_id", "route_type", "ATOC Code", "route_short_name", "route_long_name")]
   names(routes) <- c("route_id", "route_type", "agency_id", "route_short_name", "route_long_name")
-
-  # This is now set as the service_id above
-  # routes$route_short_name <- "" # was: routes$route_id
-
-  routes$route_type[routes$agency_id == "LT"] <- 1 # London Underground is Metro
 
   ### Section 6: #######################################################
   # Final Checks
