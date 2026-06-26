@@ -155,24 +155,16 @@ splitDates <- function(cal) {
     by = c( "start_date", "end_date" )
   )
 
-  # First check for overlay schedules for this date range
-  if (any(cal$STP == "O")) {
-    match <- "O"
-  } else if ("P" %in% cal$STP) {
-    match <- "P"
-  } else {
-    match <- cal$STP[cal$STP != "C"]
-    match <- match[1]
-  }
-
   # fill in the original missing schedule
+  # For each gap slot, check whether an overlay (STP=O) covers that date range;
+  # if so, use the O timetable to fill it rather than the permanent (P) one.
+  # This is the correct STP priority: O overrides P for the period it covers.
   for (j in seq(1, nrow(cal.new))) {
     if (is.na(cal.new$UID[j])) {
       st_tmp <- cal.new$start_date[j]
       ed_tmp <- cal.new$end_date[j]
-      
-      # First check for overlay schedules for this specific date range
-      overlay_exists <- any(cal$STP == "O" & cal$start_date <= st_tmp & cal$end_date >= ed_tmp)
+      overlay_exists <- any(cal$STP == "O" &
+        cal$start_date <= st_tmp & cal$end_date >= ed_tmp)
       if (overlay_exists) {
         match_stp <- "O"
       } else if ("P" %in% cal$STP) {
@@ -181,7 +173,6 @@ splitDates <- function(cal) {
         match_stp <- cal$STP[cal$STP != "C"]
         match_stp <- match_stp[1]
       }
-      
       new.UID <- cal$UID[cal$STP == match_stp & cal$start_date <= st_tmp &
         cal$end_date >= ed_tmp]
       new.Days <- cal$Days[cal$STP == match_stp & cal$start_date <= st_tmp &
@@ -224,18 +215,20 @@ splitDates <- function(cal) {
   # remove duplicated rows
   cal.new <- cal.new[!duplicated(cal.new), ]
 
-  # modify end and start dates for all schedule types, not just P
+  # modify end and start dates
   for (j in seq(1, nrow(cal.new))) {
-    # check if end date need changing
-    if (j < nrow(cal.new)) {
-      if (cal.new$end_date[j] == cal.new$start_date[j + 1]) {
-        cal.new$end_date[j] <- (cal.new$end_date[j] - 1)
+    if (cal.new$STP[j] == "P") {
+      # check if end date need changing
+      if (j < nrow(cal.new)) {
+        if (cal.new$end_date[j] == cal.new$start_date[j + 1]) {
+          cal.new$end_date[j] <- (cal.new$end_date[j] - 1)
+        }
       }
-    }
-    # check if start date needs changing
-    if (j > 1) {
-      if (cal.new$start_date[j] == cal.new$end_date[j - 1]) {
-        cal.new$start_date[j] <- (cal.new$start_date[j] + 1)
+      # check if start date needs changing
+      if (j > 1) {
+        if (cal.new$start_date[j] == cal.new$end_date[j - 1]) {
+          cal.new$start_date[j] <- (cal.new$start_date[j] + 1)
+        }
       }
     }
   }
