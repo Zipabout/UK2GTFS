@@ -112,9 +112,12 @@ schedule2routes <- function(stop_times, stops, schedule, silent = TRUE, ncores =
 
   # Apply route_type to trips BEFORE grouping so it survives dplyr::summarise.
   # 110 = Rail Replacement Bus (extended GTFS)
+  # All bus services in a CIF feed are rail-related (replacement or rail-operated),
+  # so Status='B' (permanent bus) maps to 110 (Rail Replacement Bus), not 3 (Bus).
+  # Status='5' (STP bus) already maps to 110.
   train_status <- data.frame(
     train_status = c("B", "F", "P", "S", "T", "1", "2", "3", "4", "5"),
-    route_type   = c(  3, NA,  2,  4, NA,  2, NA, NA,  4, 110),
+    route_type   = c(110, NA,  2,  4, NA,  2, NA, NA,  4, 110),
     stringsAsFactors = FALSE
   )
   trips$`Train Status` <- as.character(trips$`Train Status`)
