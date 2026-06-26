@@ -215,16 +215,35 @@ splitDates <- function(cal) {
   # remove duplicated rows
   cal.new <- cal.new[!duplicated(cal.new), ]
 
-  # modify end and start dates
+  # dplyr::right_join returns matched rows (C/O) before unmatched gap-fill rows,
+  # so the frame is NOT in date order at this point.  Sort before the boundary
+  # loop — the loop relies on adjacent rows being chronologically sequential.
+  cal.new <- cal.new[order(cal.new$start_date), ]
+
+  # Trim boundary dates so adjacent segments do not share a day.
+  #
+  # IMPORTANT: only P (permanent) rows are modified here, deliberately.
+  #
+  # When a STP=C row occupies position j-1, its end_date must remain at its
+  # original value so that the comparison below fires correctly:
+  #   start_date[j]  ==  end_date[j-1]  (original C end)  →  TRUE  →  bump
+  #
+  # If we also modified C rows, end_date[j-1] would be decremented at j-1 and
+  # the check at j would silently fail, leaving the following P segment starting
+  # on the last day of the cancellation window instead of the day after —
+  # producing "ghost" trips that appear to run on STP-cancelled dates.
   for (j in seq(1, nrow(cal.new))) {
     if (cal.new$STP[j] == "P") {
-      # check if end date need changing
+      # trim end so it does not overlap with the next segment's start
       if (j < nrow(cal.new)) {
         if (cal.new$end_date[j] == cal.new$start_date[j + 1]) {
           cal.new$end_date[j] <- (cal.new$end_date[j] - 1)
         }
       }
-      # check if start date needs changing
+      # push start forward if it sits on the boundary of the previous segment
+      # (works because C rows are never modified, so end_date[j-1] still holds
+      # the original C DateTo when j-1 is a cancellation row)
+      # end_date[j-1] still holds the original C DateTo when j-1 is a C row)
       if (j > 1) {
         if (cal.new$start_date[j] == cal.new$end_date[j - 1]) {
           cal.new$start_date[j] <- (cal.new$start_date[j] + 1)

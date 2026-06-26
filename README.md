@@ -96,3 +96,55 @@ occasionally fails on specific files.
 
 Please report failed conversions as GitHub
 [Issues](https://github.com/itsleeds/uk2gtfs/issues)
+
+---
+
+## Zipabout Development Workflow
+
+This repository is a Zipabout fork of the original
+[ITSLeeds/UK2GTFS](https://github.com/ITSLeeds/UK2GTFS) package.
+
+### Branch structure
+
+| Branch | Purpose |
+|---|---|
+| `master` | Tracks the upstream ITSLeeds fork. Receives merges from `production` once changes are stable. |
+| `production` | **The branch installed by the Zipabout Docker build.** All deployable code lives here. |
+
+The Docker base image (`zipabout/base-uk2gtfs`) installs the package
+directly from the `production` branch:
+
+```r
+remotes::install_github("Zipabout/UK2GTFS", ref="production")
+```
+
+Rebuilding the Docker image after merging to `production` picks up the
+changes automatically.
+
+### Making changes
+
+1. **Branch from `production`** (not `master`):
+   ```bash
+   git checkout production
+   git pull origin production
+   git checkout -b feature/your-description
+   ```
+
+2. **Develop and test** on your feature branch.
+
+3. **Open a PR against `production`** and get it reviewed.
+
+4. **Merge to `production`** — at this point the change is ready to be
+   picked up by the next Docker image build.
+
+5. **Rebuild the Docker images** to deploy:
+   - `zipabout/base-uk2gtfs` (the R base image — runs `install_uk2gtfs_packages.R`)
+   - `events-platform-ingestion-networkrailciftogtfs` (built on top of base)
+   - Push both to ECR and redeploy the ECS task.
+
+6. **Open a follow-up PR from `production` → `master`** once you are
+   happy the change is stable in production. This keeps `master` in sync
+   so it never drifts behind `production`.
+
+> **Never merge directly to `master` without going through `production`
+> first.** `master` should always be a subset of what is deployed.
