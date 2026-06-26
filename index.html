@@ -154,6 +154,70 @@
 </h2>
 <p>This package a work in progress and comes with no guarantees. As of September 2019, it can convert most train and bus timetables to GTFS but occasionally fails on specific files.</p>
 <p>Please report failed conversions as GitHub <a href="https://github.com/itsleeds/uk2gtfs/issues" class="external-link">Issues</a></p>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="zipabout-development-workflow">Zipabout Development Workflow<a class="anchor" aria-label="anchor" href="#zipabout-development-workflow"></a>
+</h2>
+<p>This repository is a Zipabout fork of the original <a href="https://github.com/ITSLeeds/UK2GTFS" class="external-link">ITSLeeds/UK2GTFS</a> package.</p>
+<div class="section level3">
+<h3 id="branch-structure">Branch structure<a class="anchor" aria-label="anchor" href="#branch-structure"></a>
+</h3>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th>Branch</th>
+<th>Purpose</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>master</code></td>
+<td>Tracks the upstream ITSLeeds fork. Receives merges from <code>production</code> once changes are stable.</td>
+</tr>
+<tr>
+<td><code>production</code></td>
+<td>
+<strong>The branch installed by the Zipabout Docker build.</strong> All deployable code lives here.</td>
+</tr>
+</tbody>
+</table>
+<p>The Docker base image (<code>zipabout/base-uk2gtfs</code>) installs the package directly from the <code>production</code> branch:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"Zipabout/UK2GTFS"</span>, ref<span class="op">=</span><span class="st">"production"</span><span class="op">)</span></span></code></pre></div>
+<p>Rebuilding the Docker image after merging to <code>production</code> picks up the changes automatically.</p>
+</div>
+<div class="section level3">
+<h3 id="making-changes">Making changes<a class="anchor" aria-label="anchor" href="#making-changes"></a>
+</h3>
+<ol style="list-style-type: decimal">
+<li>
+<p><strong>Branch from <code>production</code></strong> (not <code>master</code>):</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">git</span> checkout production</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">git</span> pull origin production</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="fu">git</span> checkout <span class="at">-b</span> feature/your-description</span></code></pre></div>
+</li>
+<li><p><strong>Develop and test</strong> on your feature branch.</p></li>
+<li><p><strong>Open a PR against <code>production</code></strong> and get it reviewed.</p></li>
+<li><p><strong>Merge to <code>production</code></strong> — at this point the change is ready to be picked up by the next Docker image build.</p></li>
+<li>
+<p><strong>Rebuild the Docker images</strong> to deploy:</p>
+<ul>
+<li>
+<code>zipabout/base-uk2gtfs</code> (the R base image — runs <code>install_uk2gtfs_packages.R</code>)</li>
+<li>
+<code>events-platform-ingestion-networkrailciftogtfs</code> (built on top of base)</li>
+<li>Push both to ECR and redeploy the ECS task.</li>
+</ul>
+</li>
+<li><p><strong>Open a follow-up PR from <code>production</code> → <code>master</code></strong> once you are happy the change is stable in production. This keeps <code>master</code> in sync so it never drifts behind <code>production</code>.</p></li>
+</ol>
+<blockquote>
+<p><strong>Never merge directly to <code>master</code> without going through <code>production</code> first.</strong> <code>master</code> should always be a subset of what is deployed.</p>
+</blockquote>
+</div>
 </div>
 </div>
   </div>
